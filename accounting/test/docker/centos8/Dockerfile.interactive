@@ -1,0 +1,31 @@
+FROM grondo/fluxorama:latest
+
+LABEL maintainer="Christopher Moussa <moussa1@llnl.gov>"
+
+COPY . /usr/lib64/flux-accounting/
+
+RUN yum -y update \
+  && yum install -y python3-pip python3-devel git \
+  && cd /usr/local/bin \
+  && ln -s /usr/bin/python3 python \
+  && pip3 install --user --upgrade pip \
+  && pip3 install tox
+
+# go into flux-accounting, install dependencies, and run unit tests
+RUN cd /usr/lib64/flux-accounting/ \
+  && pip3 install -r requirements.txt -t /usr/local/lib64/python3.6/site-packages/ \
+  && make install \
+  && make check
+
+# load job-archive module
+RUN printf "#!/bin/bash\nflux module load job-archive dbpath=/var/lib/flux/jobs.db\n" \
+        >/etc/flux/rc1.d/job-archive \
+  && chmod +x /etc/flux/rc1.d/job-archive
+
+# make directory for flux-accounting database
+RUN mkdir /var/lib/flux-ba
+
+# create flux-accounting database where fluxuser is the "admin"
+RUN cd /usr/lib64/flux-accounting/accounting/ \
+  && ./create_db.py -p /var/lib/flux-ba/FluxAccounting.db \
+  && chown -R fluxuser /var/lib/flux-ba/
