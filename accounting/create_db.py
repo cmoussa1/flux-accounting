@@ -12,6 +12,7 @@
 import sqlite3
 import pandas as pd
 import logging
+import argparse
 
 
 LOGGER = logging.basicConfig(filename="db_creation.log", level=logging.INFO)
@@ -20,7 +21,7 @@ LOGGER = logging.basicConfig(filename="db_creation.log", level=logging.INFO)
 def create_db(filepath):
     # open connection to database
     logging.info("Creating Flux Accounting DB")
-    conn = sqlite3.connect(filepath)
+    conn = sqlite3.connect("file:" + filepath + "?mode:rwc", uri=True)
     logging.info("Created Flux Accounting DB sucessfully")
 
     # Association Table
@@ -47,7 +48,27 @@ def create_db(filepath):
 
 
 def main():
-    create_db("FluxAccounting.db")
+
+    parser = argparse.ArgumentParser(
+        description="""
+        Description: Create flux-accounting database to store
+        user account information.
+        """
+    )
+
+    parser.add_argument(
+        "-p", "--path", dest="path", help="specify location of database file"
+    )
+
+    args = parser.parse_args()
+
+    if args.path:
+        try:
+            create_db(args.path)
+        except sqlite3.OperationalError:
+            print("Unable to create database file")
+    else:
+        create_db("FluxAccounting.db")
 
 
 if __name__ == "__main__":
