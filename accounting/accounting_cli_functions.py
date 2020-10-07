@@ -383,3 +383,16 @@ def edit_user(conn, username, field, new_value):
     )
     # commit changes
     conn.commit()
+
+
+def fake_populate_users(conn, filepath):
+    with open(filepath) as fp:
+       line = fp.readline()
+       cnt = 1
+       while line:
+           line = line.strip()
+           line = line.split('|')
+           if line[1] != '' and line[1] != 'User':
+               add_user(conn, username=line[1], bank=line[0], shares=line[2])
+           line = fp.readline()
+           cnt += 1

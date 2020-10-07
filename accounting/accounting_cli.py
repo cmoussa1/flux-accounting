@@ -164,6 +164,14 @@ def main():
     )
     subparser_print_hierarchy.set_defaults(func="print_hierarchy")
 
+    subparser_pop_db = subparsers.add_parser(
+        "pop-database", help="fake populate a database with an sshare file"
+    )
+    subparser_pop_db.set_defaults(func="pop_database")
+    subparser_pop_db.add_argument(
+        "filepath", help="path to sshare file", metavar="FILEPATH"
+    )
+
     args = parser.parse_args()
 
     # if we are creating the DB for the first time, we need
@@ -212,6 +220,8 @@ def main():
             aclif.edit_bank(conn, args.bank, args.shares)
         elif args.func == "print_hierarchy":
             print(ph.print_full_hierarchy(conn))
+        elif args.func == "pop_database":
+            aclif.fake_populate_users(conn, args.filepath)
         else:
             print(parser.print_usage())
     finally:
