@@ -7,7 +7,7 @@ AM_LDFLAGS = $(CODE_COVERAGE_LDFLAGS)
 AM_CPPFLAGS = -I$(top_srcdir) $(FLUX_CORE_CFLAGS)
 
 TESTS = weighted_tree_test01.t
-check_PROGRAMS = $(TESTS)
+check_PROGRAMS = $(TESTS) load_accounting_db
 
 TEST_EXTENSIONS = .t
 T_LOG_DRIVER = env AM_TAP_AWK='$(AWK)' $(SHELL) \
@@ -21,6 +21,16 @@ weighted_tree_test01_t_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir)
 weighted_tree_test01_t_LDADD = \
     $(top_builddir)/src/fairness/weighted_tree/libweighted_tree.la \
     $(top_builddir)/src/common/libtap/libtap.la
+
+load_accounting_db_SOURCES = \
+    load_accounting_db.cpp \
+    weighted_tree_load.cpp \
+    weighted_tree_load.hpp
+load_accounting_db_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) $(SQLITE_CFLAGS)
+load_accounting_db_LDADD = \
+    $(top_builddir)/src/fairness/weighted_tree/libweighted_tree.la
+load_accounting_db_LDFLAGS = \
+                $(SQLITE_LIBS)
 
 dist_check_DATA = \
 	accounts_data/minimal.csv \
