@@ -109,7 +109,7 @@ void weighted_tree_node_t::propagate_subtree_leaf_size ()
  ******************************************************************************/
 
 weighted_tree_node_t::weighted_tree_node_t (
-    weighted_tree_node_t *parent, const std::string &name,
+    std::shared_ptr<weighted_tree_node_t> parent, const std::string &name,
     bool is_user, uint64_t shares, uint64_t usage)
     : account_t (name, is_user, shares, usage)
 {
@@ -145,6 +145,12 @@ std::shared_ptr<weighted_tree_node_t> weighted_tree_node_t
     if (i >= m_children.size ())
         return nullptr;
     return m_children[i];
+}
+
+std::shared_ptr<weighted_tree_node_t> weighted_tree_node_t
+                                          ::get_parent () const
+{
+    return m_parent;
 }
 
 bool weighted_tree_node_t::is_tie_with_next () const
