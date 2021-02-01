@@ -209,12 +209,12 @@ std::shared_ptr<weighted_tree_node_t> load_accounting_db (
                                                     const std::string &path)
 {
     // SQL statements to retrieve data from flux-accounting database
-    sqlite3_stmt *b_select_root_bank_stmt;
-    sqlite3_stmt *b_select_shares_stmt;
-    sqlite3_stmt *b_select_sub_banks_stmt;
-    sqlite3_stmt *b_select_associations_stmt;
+    sqlite3_stmt *b_select_root_bank_stmt = nullptr;
+    sqlite3_stmt *b_select_shares_stmt = nullptr;
+    sqlite3_stmt *b_select_sub_banks_stmt = nullptr;
+    sqlite3_stmt *b_select_associations_stmt = nullptr;
 
-    sqlite3 *DB;
+    sqlite3 *DB = nullptr;
     int rc = 0;
 
     // open FluxAccounting DB in read-write mode; if it does not exist yet,
