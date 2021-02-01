@@ -185,7 +185,7 @@ std::shared_ptr<weighted_tree_node_t> get_sub_banks (
 
             return nullptr;
         }
-        for (std::string b : banks) {
+        for (const std::string &b : banks) {
             // reset the prepared statements back to their initial state and
             // clear their bindings
             sqlite3_clear_bindings (b_select_associations_stmt);
