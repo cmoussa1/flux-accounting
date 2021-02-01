@@ -37,8 +37,6 @@
 
 using namespace Flux::accounting;
 
-std::string accounting_db_data_dir;
-
 static void test_fairshare_order (const std::string &filename,
                                   const std::vector<std::string> &expected)
 {
@@ -61,7 +59,8 @@ static void test_fairshare_order (const std::string &filename,
     return;
 }
 
-static void test_small_no_tie () {
+static void test_small_no_tie (const std::string &accounting_db_data_dir)
+{
     std::string filename = accounting_db_data_dir + "/small_no_tie.db";
 
     std::vector<std::string> expected;
@@ -76,8 +75,10 @@ static void test_small_no_tie () {
     test_fairshare_order (filename, expected);
 }
 
-static void test_small_tie_zero_shares () {
-    std::string filename  = accounting_db_data_dir + "/small_tie_zero_shares.db";
+static void test_small_tie_zero_shares (
+                                const std::string &accounting_db_data_dir)
+{
+    std::string filename = accounting_db_data_dir + "/small_tie_zero_shares.db";
 
     std::vector<std::string> expected;
     expected.push_back ("leaf.3.1");
@@ -92,7 +93,8 @@ static void test_small_tie_zero_shares () {
     test_fairshare_order (filename, expected);
 }
 
-static void test_small_tie () {
+static void test_small_tie (const std::string &accounting_db_data_dir)
+{
     std::string filename = accounting_db_data_dir + "/small_tie.db";
 
     std::vector<std::string> expected;
@@ -108,7 +110,8 @@ static void test_small_tie () {
     test_fairshare_order (filename, expected);
 }
 
-static void test_small_tie_all() {
+static void test_small_tie_all(const std::string &accounting_db_data_dir)
+{
     std::string filename = accounting_db_data_dir + "/small_tie_all.db";
 
     std::vector<std::string> expected;
@@ -125,19 +128,19 @@ static void test_small_tie_all() {
     test_fairshare_order (filename, expected);
 }
 
-int main(int argc, char *argv[]) {
-
+int main(int argc, char *argv[])
+{
     plan (4);
 
-    accounting_db_data_dir = std::getenv("ACCOUNTING_DB_DATA_DIR");
+    std::string accounting_db_data_dir = std::getenv("ACCOUNTING_DB_DATA_DIR");
 
-    test_small_no_tie ();
+    test_small_no_tie (accounting_db_data_dir);
 
-    test_small_tie_zero_shares ();
+    test_small_tie_zero_shares (accounting_db_data_dir);
 
-    test_small_tie ();
+    test_small_tie (accounting_db_data_dir);
 
-    test_small_tie_all();
+    test_small_tie_all(accounting_db_data_dir);
 
     done_testing ();
 
