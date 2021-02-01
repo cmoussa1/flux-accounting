@@ -75,11 +75,22 @@ std::shared_ptr<weighted_tree_node_t> get_sub_banks (
         sqlite3_column_text (b_select_shares_stmt, 0));
 
     // initialize a weighted tree node
-    node = std::make_shared<weighted_tree_node_t> (parent_bank,
-                                                   bank_name,
-                                                   false,
-                                                   std::stoll (bank_shares),
-                                                   0);
+    try {
+        node = std::make_shared<weighted_tree_node_t> (parent_bank,
+                                                       bank_name,
+                                                       false,
+                                                       std::stoll (bank_shares),
+                                                       0);
+    }
+    catch (const std::invalid_argument &ia) {
+        std::cerr << "Invalid argument: " << ia.what() << std::endl;
+        return nullptr;
+    }
+    catch (const std::out_of_range &oor) {
+        std::cerr << "Out of range error: " << oor.what() << std::endl;
+        return nullptr;
+    }
+
 
     // if there is no parent bank, then the root pointer points to the root bank
     if (!parent_bank) {
@@ -140,14 +151,24 @@ std::shared_ptr<weighted_tree_node_t> get_sub_banks (
                 sqlite3_column_text (b_select_associations_stmt, 3));
 
             // add user as a child of the node
-            user_node = std::make_shared<weighted_tree_node_t> (
-                            parent_bank,
-                            username,
-                            true,
-                            std::stoll (user_shares),
-                            std::stoll (user_job_usage));
-            node->add_child (user_node);
-            leaf_bank_usage += std::stoi (user_job_usage);
+            try {
+                user_node = std::make_shared<weighted_tree_node_t> (
+                                                parent_bank,
+                                                username,
+                                                true,
+                                                std::stoll (user_shares),
+                                                std::stoll (user_job_usage));
+                node->add_child (user_node);
+                leaf_bank_usage += std::stoi (user_job_usage);
+            }
+            catch (const std::invalid_argument &ia) {
+                std::cerr << "Invalid argument: " << ia.what() << std::endl;
+                return nullptr;
+            }
+            catch (const std::out_of_range &oor) {
+                std::cerr << "Out of range error: " << oor.what() << std::endl;
+                return nullptr;
+            }
 
             rc = sqlite3_step (b_select_associations_stmt);
         }
