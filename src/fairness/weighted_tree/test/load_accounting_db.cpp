@@ -32,6 +32,24 @@
 
 using namespace Flux::accounting;
 
+/*
+get_sub_banks() performs a depth-first search of the flux-accounting database,
+starting at the root bank and descending down into its sub banks all the way
+down to each bank's associations. It takes a handle to the SQLite database, the
+name of the current bank, its parent bank (unless it is the root bank), and a
+couple of SELECT SQL queries to fetch data from the database as input.
+
+It will construct a weighted_tree_node_t object of every bank and association
+it comes across, adding it to a tree.
+
+It will also tally up job usage values up from each association back up to its
+respctive parent bank and up to the root bank as it traverses.
+
+It returns a shared pointer to the root of the tree.
+
+If at any point during the depth-first search does an error code get returned
+from any of the SQLite statements or an exception occurs, a nullptr is returned.
+*/
 std::shared_ptr<weighted_tree_node_t> get_sub_banks (
                             sqlite3 *DB,
                             const std::string &bank_name,
