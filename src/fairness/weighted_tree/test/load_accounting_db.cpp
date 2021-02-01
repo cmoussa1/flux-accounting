@@ -36,13 +36,15 @@ std::shared_ptr<weighted_tree_node_t> node = nullptr;
 std::shared_ptr<weighted_tree_node_t> user_node = nullptr;
 std::shared_ptr<weighted_tree_node_t> root_ptr = nullptr;
 
-std::shared_ptr<weighted_tree_node_t>
-get_sub_banks (sqlite3 *DB,
-               const std::string &bank_name,
-               std::shared_ptr<weighted_tree_node_t> parent_bank,
-               sqlite3_stmt *b_select_shares_stmt,
-               sqlite3_stmt *b_select_sub_banks_stmt,
-               sqlite3_stmt *b_select_associations_stmt) {
+std::shared_ptr<weighted_tree_node_t> get_sub_banks (
+                            sqlite3 *DB,
+                            const std::string &bank_name,
+                            std::shared_ptr<weighted_tree_node_t> parent_bank,
+                            sqlite3_stmt *b_select_shares_stmt,
+                            sqlite3_stmt *b_select_sub_banks_stmt,
+                            sqlite3_stmt *b_select_associations_stmt)
+{
+
     int rc = 0;
     int leaf_bank_usage = 0;
 
@@ -61,13 +63,13 @@ get_sub_banks (sqlite3 *DB,
     // execute SQL statement and store result
     rc = sqlite3_step (b_select_shares_stmt);
     if (rc == SQLITE_ERROR) {
-        fprintf (stderr, "%s\n", sqlite3_errmsg (DB));
+        std::cerr << "Failed to fetch data: " << sqlite3_errmsg (DB);
         sqlite3_close (DB);
 
         return nullptr;
     }
 
-    std::string bank_shares = reinterpret_cast<char const *>(
+    std::string bank_shares = reinterpret_cast<char const *> (
         sqlite3_column_text (b_select_shares_stmt, 0));
 
     // initialize a weighted tree node
@@ -159,10 +161,9 @@ get_sub_banks (sqlite3 *DB,
             curr_ancestor->set_usage (curr_ancestor->get_usage ()
                                       + leaf_bank_usage);
         }
-    }
-    // otherwise, this bank has sub banks, so call this
-    // function again with the first sub bank it found
-    else {
+    } else {
+        // otherwise, this bank has sub banks, so call this
+        // function again with the first sub bank it found
         parent_bank = node;
         while (rc == SQLITE_ROW) {
             // execute SQL statement
@@ -197,8 +198,9 @@ get_sub_banks (sqlite3 *DB,
     return root_ptr;
 }
 
-std::shared_ptr<weighted_tree_node_t>
-load_accounting_db (const std::string &path) {
+std::shared_ptr<weighted_tree_node_t> load_accounting_db (
+                                                    const std::string &path)
+{
     // SQL statements to retrieve data from flux-accounting database
     sqlite3_stmt *b_select_root_bank_stmt;
     sqlite3_stmt *b_select_shares_stmt;

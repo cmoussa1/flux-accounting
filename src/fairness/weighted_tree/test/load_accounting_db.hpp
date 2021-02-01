@@ -27,5 +27,5 @@
 
 using namespace Flux::accounting;
 
-std::shared_ptr<weighted_tree_node_t>
-load_accounting_db (const std::string &path);
+std::shared_ptr<weighted_tree_node_t> load_accounting_db (
+                                                    const std::string &path);
