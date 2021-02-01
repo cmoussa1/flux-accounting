@@ -32,10 +32,6 @@
 
 using namespace Flux::accounting;
 
-std::shared_ptr<weighted_tree_node_t> node = nullptr;
-std::shared_ptr<weighted_tree_node_t> user_node = nullptr;
-std::shared_ptr<weighted_tree_node_t> root_ptr = nullptr;
-
 std::shared_ptr<weighted_tree_node_t> get_sub_banks (
                             sqlite3 *DB,
                             const std::string &bank_name,
@@ -44,6 +40,10 @@ std::shared_ptr<weighted_tree_node_t> get_sub_banks (
                             sqlite3_stmt *b_select_sub_banks_stmt,
                             sqlite3_stmt *b_select_associations_stmt)
 {
+
+    std::shared_ptr<weighted_tree_node_t> node = nullptr;
+    std::shared_ptr<weighted_tree_node_t> user_node = nullptr;
+    std::shared_ptr<weighted_tree_node_t> root_ptr = nullptr;
 
     int rc = 0;
     int leaf_bank_usage = 0;
