@@ -40,7 +40,8 @@ using namespace Flux::accounting;
 std::string accounting_db_data_dir;
 
 static void test_fairshare_order (const std::string &filename,
-                           const std::vector<std::string> &expected) {
+                                  const std::vector<std::string> &expected)
+{
     bool bo = true;
     std::shared_ptr<weighted_tree_node_t> root;
 
