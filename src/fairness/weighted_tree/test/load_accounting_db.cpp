@@ -55,7 +55,8 @@ std::shared_ptr<weighted_tree_node_t> get_sub_banks (
                             -1,
                             NULL);
     if (rc != SQLITE_OK) {
-        fprintf (stderr, "Failed to fetch data: %s\n", sqlite3_errmsg (DB));
+        std::cerr
+            << "Failed to fetch data: " << sqlite3_errmsg (DB) << std::endl;
         sqlite3_close (DB);
 
         return nullptr;
@@ -63,7 +64,8 @@ std::shared_ptr<weighted_tree_node_t> get_sub_banks (
     // execute SQL statement and store result
     rc = sqlite3_step (b_select_shares_stmt);
     if (rc == SQLITE_ERROR) {
-        std::cerr << "Failed to fetch data: " << sqlite3_errmsg (DB);
+        std::cerr
+            << "Failed to fetch data: " << sqlite3_errmsg (DB) << std::endl;
         sqlite3_close (DB);
 
         return nullptr;
@@ -92,14 +94,16 @@ std::shared_ptr<weighted_tree_node_t> get_sub_banks (
                             -1,
                             NULL);
     if (rc != SQLITE_OK) {
-        fprintf (stderr, "Failed to fetch data: %s\n", sqlite3_errmsg (DB));
+        std::cerr
+            << "Failed to fetch data: " << sqlite3_errmsg (DB) << std::endl;
         sqlite3_close (DB);
 
         return nullptr;
     }
     rc = sqlite3_step (b_select_sub_banks_stmt);
     if (rc == SQLITE_ERROR) {
-        fprintf (stderr, "%s\n", sqlite3_errmsg (DB));
+        std::cerr
+            << "Failed to fetch data: " << sqlite3_errmsg (DB) << std::endl;
         sqlite3_close (DB);
 
         return nullptr;
@@ -118,7 +122,8 @@ std::shared_ptr<weighted_tree_node_t> get_sub_banks (
                                 -1,
                                 NULL);
         if (rc != SQLITE_OK) {
-            fprintf(stderr, "Failed to fetch data: %s\n", sqlite3_errmsg (DB));
+            std::cerr
+                << "Failed to fetch data: " << sqlite3_errmsg (DB) << std::endl;
             sqlite3_close (DB);
 
             return nullptr;
@@ -147,7 +152,8 @@ std::shared_ptr<weighted_tree_node_t> get_sub_banks (
             rc = sqlite3_step (b_select_associations_stmt);
         }
         if (rc == SQLITE_ERROR) {
-            fprintf (stderr, "%s\n", sqlite3_errmsg (DB));
+            std::cerr
+                << "Failed to fetch data: " << sqlite3_errmsg (DB) << std::endl;
             sqlite3_close (DB);
 
             return nullptr;
@@ -173,7 +179,8 @@ std::shared_ptr<weighted_tree_node_t> get_sub_banks (
             rc = sqlite3_step (b_select_sub_banks_stmt);
         }
         if (rc == SQLITE_ERROR) {
-            fprintf (stderr, "%s\n", sqlite3_errmsg (DB));
+            std::cerr
+                << "Failed to fetch data: " << sqlite3_errmsg (DB) << std::endl;
             sqlite3_close (DB);
 
             return nullptr;
@@ -262,7 +269,8 @@ std::shared_ptr<weighted_tree_node_t> load_accounting_db (
                              &b_select_root_bank_stmt,
                              0);
     if (rc != SQLITE_OK) {
-        fprintf (stderr, "Failed to fetch data: %s\n", sqlite3_errmsg (DB));
+        std::cerr
+            << "Failed to fetch data: " << sqlite3_errmsg (DB) << std::endl;
         sqlite3_close (DB);
 
         return nullptr;
