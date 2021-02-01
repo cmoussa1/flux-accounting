@@ -209,12 +209,49 @@ std::shared_ptr<weighted_tree_node_t> get_sub_banks (
         for (const std::string &b : banks) {
             // reset the prepared statements back to their initial state and
             // clear their bindings
-            sqlite3_clear_bindings (b_select_associations_stmt);
-            sqlite3_reset (b_select_associations_stmt);
-            sqlite3_clear_bindings (b_select_sub_banks_stmt);
-            sqlite3_reset (b_select_sub_banks_stmt);
-            sqlite3_clear_bindings (b_select_shares_stmt);
-            sqlite3_reset (b_select_shares_stmt);
+            rc = sqlite3_clear_bindings (b_select_associations_stmt);
+            if (rc == SQLITE_ERROR) {
+                std::cerr << sqlite3_errmsg (DB) << std::endl;
+                sqlite3_close (DB);
+
+                return nullptr;
+            }
+            rc = sqlite3_reset (b_select_associations_stmt);
+            if (rc == SQLITE_ERROR) {
+                std::cerr << sqlite3_errmsg (DB) << std::endl;
+                sqlite3_close (DB);
+
+                return nullptr;
+            }
+            rc = sqlite3_clear_bindings (b_select_sub_banks_stmt);
+            if (rc == SQLITE_ERROR) {
+                std::cerr << sqlite3_errmsg (DB) << std::endl;
+                sqlite3_close (DB);
+
+                return nullptr;
+            }
+            rc = sqlite3_reset (b_select_sub_banks_stmt);
+            if (rc == SQLITE_ERROR) {
+                std::cerr << sqlite3_errmsg (DB) << std::endl;
+                sqlite3_close (DB);
+
+                return nullptr;
+            }
+            rc = sqlite3_clear_bindings (b_select_shares_stmt);
+            if (rc == SQLITE_ERROR) {
+                std::cerr << sqlite3_errmsg (DB) << std::endl;
+                sqlite3_close (DB);
+
+                return nullptr;
+            }
+            rc = sqlite3_reset (b_select_shares_stmt);
+            if (rc == SQLITE_ERROR) {
+                std::cerr << sqlite3_errmsg (DB) << std::endl;
+                sqlite3_close (DB);
+
+                return nullptr;
+            }
+
             get_sub_banks (DB,
                            b,
                            parent_bank,
