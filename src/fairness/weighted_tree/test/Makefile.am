@@ -7,7 +7,7 @@ AM_LDFLAGS = $(CODE_COVERAGE_LDFLAGS)
 AM_CPPFLAGS = -I$(top_srcdir) $(FLUX_CORE_CFLAGS)
 
 TESTS = weighted_tree_test01.t load_accounting_db_test02.t
-check_PROGRAMS = $(TESTS) 
+check_PROGRAMS = $(TESTS)
 
 TEST_EXTENSIONS = .t
 T_LOG_DRIVER = env AM_TAP_AWK='$(AWK)' $(SHELL) \
@@ -24,8 +24,8 @@ weighted_tree_test01_t_LDADD = \
 
 load_accounting_db_test02_t_SOURCES = \
 	load_accounting_db_test02.cpp \
-	load_accounting_db.cpp \
-	load_accounting_db.hpp
+	../load_accounting_db.cpp \
+	../load_accounting_db.hpp
 load_accounting_db_test02_t_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) $(SQLITE_CFLAGS)
 load_accounting_db_test02_t_LDFLAGS = $(SQLITE_LIBS)
 load_accounting_db_test02_t_LDADD = \

@@ -28,7 +28,7 @@
 #include <tuple>
 #include <vector>
 
-#include "src/fairness/weighted_tree/test/load_accounting_db.hpp"
+#include "src/fairness/weighted_tree/load_accounting_db.hpp"
 
 using namespace Flux::accounting;
 
