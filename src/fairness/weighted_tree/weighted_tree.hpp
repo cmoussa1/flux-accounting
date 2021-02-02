@@ -65,7 +65,8 @@ private:
     uint64_t m_subtree_leaf_size = 0;
     double m_weight = 0.0f;
     bool m_tie_with_next = false;
-    std::shared_ptr<weighted_tree_node_t> m_parent = nullptr;
+    std::weak_ptr<weighted_tree_node_t> m_parent =
+                                        std::weak_ptr<weighted_tree_node_t> ();
     std::vector<std::shared_ptr<weighted_tree_node_t>> m_children;
 };
 
