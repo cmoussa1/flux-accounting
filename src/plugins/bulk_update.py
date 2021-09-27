@@ -42,10 +42,7 @@ def est_sqlite_conn(path):
     return conn
 
 
-def bulk_update(path):
-    conn = est_sqlite_conn(path)
-    cur = conn.cursor()
-
+def bulk_user_update(cur):
     # fetch all rows from association_table (will print out tuples)
     for row in cur.execute(
         "SELECT userid, bank, default_bank, fairshare, max_jobs, qos FROM association_table"
@@ -60,7 +57,7 @@ def bulk_update(path):
             "qos": str(row[5]),
         }
 
-        flux.Flux().rpc("job-manager.mf_priority.rec_update", data).get()
+        flux.Flux().rpc("job-manager.mf_priority.get_users", data).get()
 
 
 def main():
@@ -78,7 +75,12 @@ def main():
 
     path = set_db_loc(args)
 
-    bulk_update(path)
+    conn = est_sqlite_conn(path)
+    cur = conn.cursor()
+
+    bulk_user_update(cur)
+
+    conn.close()
 
 
 if __name__ == "__main__":
