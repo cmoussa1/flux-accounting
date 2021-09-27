@@ -25,6 +25,8 @@ extern "C" {
 #include <cassert>
 #include <algorithm>
 #include <cinttypes>
+#include <sstream>
+#include <vector>
 
 std::map<int, std::map<std::string, struct bank_info>> users;
 std::map<int, std::string> users_def_bank;
@@ -33,6 +35,7 @@ struct bank_info {
     double fairshare;
     int max_jobs;
     int current_jobs;
+    std::vector<std::string> qos;
 };
 
 /******************************************************************************
@@ -101,14 +104,16 @@ static void rec_update_cb (flux_t *h,
                            const flux_msg_t *msg,
                            void *arg)
 {
-    char *uid, *fshare, *bank, *default_bank, *max_jobs;
+    char *uid, *fshare, *bank, *default_bank, *max_jobs, *qos;
+    std::stringstream s_stream;
 
-    if (flux_request_unpack (msg, NULL, "{s:s, s:s, s:s, s:s, s:s}",
+    if (flux_request_unpack (msg, NULL, "{s:s, s:s, s:s, s:s, s:s, s:s}",
                              "userid", &uid,
                              "bank", &bank,
                              "default_bank", &default_bank,
                              "fairshare", &fshare,
-                             "max_jobs", &max_jobs) < 0) {
+                             "max_jobs", &max_jobs,
+                             "qos", &qos) < 0) {
         flux_log_error (h, "failed to unpack custom_priority.trigger msg");
         goto error;
     }
@@ -121,6 +126,13 @@ static void rec_update_cb (flux_t *h,
 
     b->fairshare = std::atof (fshare);
     b->max_jobs = std::atoi (max_jobs);
+
+    s_stream << qos; // create string stream from the string
+    while (s_stream.good ()) {
+        std::string substr;
+        getline (s_stream, substr, ','); // get first string delimited by comma
+        b->qos.push_back (substr);
+    }
 
     users_def_bank[std::atoi (uid)] = default_bank;
 
