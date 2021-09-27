@@ -99,7 +99,7 @@ int64_t priority_calculation (flux_plugin_t *p,
  * Unpack a payload from an external bulk update service and place it in the
  * multimap datastructure.
  */
-static void rec_update_cb (flux_t *h,
+static void get_users_cb (flux_t *h,
                            flux_msg_handler_t *mh,
                            const flux_msg_t *msg,
                            void *arg)
@@ -310,7 +310,7 @@ static const struct flux_plugin_handler tab[] = {
 extern "C" int flux_plugin_init (flux_plugin_t *p)
 {
     if (flux_plugin_register (p, "mf_priority", tab) < 0
-        || flux_jobtap_service_register (p, "rec_update", rec_update_cb, p) < 0)
+        || flux_jobtap_service_register (p, "get_users", get_users_cb, p) < 0)
         return -1;
     return 0;
 }
