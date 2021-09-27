@@ -30,7 +30,7 @@ test_expect_success 'send an empty payload to make sure unpack fails' '
 	import flux
 
 	#create a JSON payload
-	flux.Flux().rpc("job-manager.mf_priority.rec_update", {}).get()
+	flux.Flux().rpc("job-manager.mf_priority.get_users", {}).get()
 	EOF
 	test_must_fail flux python bad_payload.py &&
 	flux dmesg | grep "failed to unpack custom_priority.trigger msg: Protocol error"
@@ -46,9 +46,9 @@ test_expect_success 'create fake_payload.py' '
 	userid = pwd.getpwnam(username).pw_uid
 	# create a JSON payload
 	data = {"userid": str(userid), "bank": "account3", "default_bank": "account3", "fairshare": "0.45321", "max_jobs": "10", "qos": "standby,expedite"}
-	flux.Flux().rpc("job-manager.mf_priority.rec_update", data).get()
+	flux.Flux().rpc("job-manager.mf_priority.get_users", data).get()
 	data = {"userid": str(userid), "bank": "account2", "default_bank": "account3", "fairshare": "0.11345", "max_jobs": "10", "qos": "standby"}
-	flux.Flux().rpc("job-manager.mf_priority.rec_update", data).get()
+	flux.Flux().rpc("job-manager.mf_priority.get_users", data).get()
 	EOF
 '
 
@@ -133,7 +133,7 @@ test_expect_success 'create a fake payload with an empty fairshare key-value pai
 	userid = pwd.getpwnam(username).pw_uid
 	# create a JSON payload
 	data = {"userid": str(userid), "bank": "account4", "default_bank": "account3", "fairshare": "", "max_jobs": "10", "qos": "standby"}
-	flux.Flux().rpc("job-manager.mf_priority.rec_update", data).get()
+	flux.Flux().rpc("job-manager.mf_priority.get_users", data).get()
 	EOF
 '
 
