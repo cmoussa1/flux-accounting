@@ -45,9 +45,9 @@ test_expect_success 'create fake_payload.py' '
 	username = getpass.getuser()
 	userid = pwd.getpwnam(username).pw_uid
 	# create a JSON payload
-	data = {"userid": str(userid), "bank": "account3", "default_bank": "account3", "fairshare": "0.45321", "max_jobs": "10"}
+	data = {"userid": str(userid), "bank": "account3", "default_bank": "account3", "fairshare": "0.45321", "max_jobs": "10", "qos": "standby,expedite"}
 	flux.Flux().rpc("job-manager.mf_priority.rec_update", data).get()
-	data = {"userid": str(userid), "bank": "account2", "default_bank": "account3", "fairshare": "0.11345", "max_jobs": "10"}
+	data = {"userid": str(userid), "bank": "account2", "default_bank": "account3", "fairshare": "0.11345", "max_jobs": "10", "qos": "standby"}
 	flux.Flux().rpc("job-manager.mf_priority.rec_update", data).get()
 	EOF
 '
@@ -132,7 +132,7 @@ test_expect_success 'create a fake payload with an empty fairshare key-value pai
 	username = getpass.getuser()
 	userid = pwd.getpwnam(username).pw_uid
 	# create a JSON payload
-	data = {"userid": str(userid), "bank": "account4", "default_bank": "account3", "fairshare": "", "max_jobs": "10"}
+	data = {"userid": str(userid), "bank": "account4", "default_bank": "account3", "fairshare": "", "max_jobs": "10", "qos": "standby"}
 	flux.Flux().rpc("job-manager.mf_priority.rec_update", data).get()
 	EOF
 '
