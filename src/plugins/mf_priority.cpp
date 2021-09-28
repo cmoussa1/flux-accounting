@@ -36,7 +36,8 @@ struct bank_info {
     double fairshare;
     int max_jobs;
     int current_jobs;
-    std::vector<std::string> qos;
+    int qos_factor;
+    std::vector<std::string> avail_qos;
 };
 
 /******************************************************************************
@@ -132,7 +133,7 @@ static void get_users_cb (flux_t *h,
     while (s_stream.good ()) {
         std::string substr;
         getline (s_stream, substr, ','); // get first string delimited by comma
-        b->qos.push_back (substr);
+        b->avail_qos.push_back (substr);
     }
 
     users_def_bank[std::atoi (uid)] = default_bank;
@@ -229,11 +230,13 @@ static int validate_cb (flux_plugin_t *p,
 {
     int userid;
     char *bank = NULL;
+    char *qos = NULL;
     int current_jobs, max_jobs = 0;
     double fairshare = 0.0;
 
     std::map<int, std::map<std::string, struct bank_info>>::iterator it;
     std::map<std::string, struct bank_info>::iterator bank_it;
+    std::map<std::string, int>::iterator qos_it;
 
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
@@ -269,6 +272,25 @@ static int validate_cb (flux_plugin_t *p,
     max_jobs = bank_it->second.max_jobs;
     current_jobs = bank_it->second.current_jobs;
     fairshare = bank_it->second.fairshare;
+
+    // make sure that if a QoS is passed in, it 1) exists, and 2) is a valid
+    // QoS for the user to pass in
+    if (qos != NULL) {
+        // checking 1) the QoS passed in exists in qos_map
+        qos_it = qos_map.find (qos);
+        if (qos_it == qos_map.end ())
+            return flux_jobtap_reject_job (p, args, "QoS does not exist");
+
+        // checking 2) the QoS passed in is a valid option to pass for user
+        std::vector<std::string>::iterator vect_it;
+        vect_it = std::find (bank_it->second.avail_qos.begin (),
+                           bank_it->second.avail_qos.end (), qos);
+
+        if (vect_it == bank_it->second.avail_qos.end ())
+            return flux_jobtap_reject_job (p, args, "QoS not valid for user");
+        else
+            bank_it->second.qos_factor = qos_map[qos];
+    }
 
     // if a user's fairshare value is 0, that means they shouldn't be able
     // to run jobs on a system
