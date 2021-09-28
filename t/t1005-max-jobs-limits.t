@@ -27,6 +27,11 @@ test_expect_success 'create fake_user.json' '
 		"users" : [
 			{"userid": "5011", "bank": "account3", "default_bank": "account3", "fairshare": "0.45321", "max_jobs": "3", "qos": ""},
 			{"userid": "5011", "bank": "account2", "default_bank": "account3", "fairshare": "0.11345", "max_jobs": "2", "qos": ""}
+		],
+		"qos" : [
+			{"qos": "standby", "priority": "-1000"},
+			{"qos": "normal", "priority": "0"},
+			{"qos": "expedite", "priority": "1000"}
 		]
 	}
 	EOF
@@ -85,6 +90,11 @@ test_expect_success 'increase the max jobs count of the user' '
 	{
 		"users" : [
 			{"userid": "5011", "bank": "account3", "default_bank": "account3", "fairshare": "0.45321", "max_jobs": "4", "qos": ""}
+		],
+		"qos" : [
+			{"qos": "standby", "priority": "-1000"},
+			{"qos": "normal", "priority": "0"},
+			{"qos": "expedite", "priority": "1000"}
 		]
 	}
 	EOF

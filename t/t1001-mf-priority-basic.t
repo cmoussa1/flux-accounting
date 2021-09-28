@@ -49,6 +49,10 @@ test_expect_success 'create fake_payload.py' '
 	flux.Flux().rpc("job-manager.mf_priority.get_users", data).get()
 	data = {"userid": str(userid), "bank": "account2", "default_bank": "account3", "fairshare": "0.11345", "max_jobs": "10", "qos": "standby"}
 	flux.Flux().rpc("job-manager.mf_priority.get_users", data).get()
+	data = {"qos": "standby", "priority": "-1000"}
+	flux.Flux().rpc("job-manager.mf_priority.get_qos", data).get()
+	data = {"qos": "expedite", "priority": "10000"}
+	flux.Flux().rpc("job-manager.mf_priority.get_qos", data).get()
 	EOF
 '
 
@@ -134,6 +138,10 @@ test_expect_success 'create a fake payload with an empty fairshare key-value pai
 	# create a JSON payload
 	data = {"userid": str(userid), "bank": "account4", "default_bank": "account3", "fairshare": "", "max_jobs": "10", "qos": "standby"}
 	flux.Flux().rpc("job-manager.mf_priority.get_users", data).get()
+	data = {"qos": "standby", "priority": "-1000"}
+	flux.Flux().rpc("job-manager.mf_priority.get_qos", data).get()
+	data = {"qos": "expedite", "priority": "10000"}
+	flux.Flux().rpc("job-manager.mf_priority.get_qos", data).get()
 	EOF
 '
 

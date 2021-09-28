@@ -33,6 +33,11 @@ test_expect_success 'create a group of users with some ties in fairshare values'
 			{"userid": "5023", "bank": "account2", "default_bank": "account2", "fairshare": "0.75", "max_jobs": "5", "qos": ""},
 			{"userid": "5031", "bank": "account3", "default_bank": "account3", "fairshare": "1.0", "max_jobs": "5", "qos": ""},
 			{"userid": "5032", "bank": "account3", "default_bank": "account3", "fairshare": "0.875", "max_jobs": "5", "qos": ""}
+		],
+		"qos" : [
+			{"qos": "standby", "priority": "-1000"},
+			{"qos": "normal", "priority": "0"},
+			{"qos": "expedite", "priority": "1000"}
 		]
 	}
 	EOF
