@@ -120,7 +120,7 @@ test_expect_success 'submit a job using a bank the user does not belong to' '
 test_expect_success 'reject job when invalid bank format is passed in' '
 	test_must_fail flux mini submit --setattr=system.bank=1 -n1 hostname > invalid_fmt.out 2>&1 &&
 	test_debug "cat invalid_fmt.out" &&
-	grep "unable to unpack bank arg" invalid_fmt.out
+	grep "unable to unpack arg(s)" invalid_fmt.out
 '
 
 test_expect_success 'create a fake payload with an empty fairshare key-value pair' '

@@ -238,11 +238,11 @@ static int validate_cb (flux_plugin_t *p,
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:i, s{s{s{s?s}}}}",
+                                "{s:i, s{s{s{s?s, s?s}}}}",
                                 "userid", &userid,
                                 "jobspec", "attributes", "system",
-                                "bank", &bank) < 0) {
-        return flux_jobtap_reject_job (p, args, "unable to unpack bank arg");
+                                "bank", &bank, "qos", &qos) < 0) {
+        return flux_jobtap_reject_job (p, args, "unable to unpack arg(s)");
     }
 
     // make sure user belongs to flux-accounting DB
