@@ -60,6 +60,18 @@ def bulk_user_update(cur):
         flux.Flux().rpc("job-manager.mf_priority.get_users", data).get()
 
 
+def bulk_qos_update(cur):
+    # fetch all rows from association_table (will print out tuples)
+    for row in cur.execute("SELECT qos, priority FROM qos_table"):
+        # create a JSON payload with the results of the query
+        data = {
+            "qos": str(row[0]),
+            "priority": str(row[1]),
+        }
+
+        flux.Flux().rpc("job-manager.mf_priority.get_qos", data).get()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="""
@@ -79,6 +91,7 @@ def main():
     cur = conn.cursor()
 
     bulk_user_update(cur)
+    bulk_qos_update(cur)
 
     conn.close()
 
