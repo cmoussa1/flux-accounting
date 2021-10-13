@@ -51,6 +51,8 @@ struct bank_info {
  *
  * fairshare: the ratio between the amount of resources allocated vs. resources
  *     consumed.
+ * qos: a Quality of Service (QoS) factor that can further increase or decrease
+ *     the priority of a job based on the QoS passed in.
  * urgency: a user-controlled factor to prioritize their own jobs.
  */
 int64_t priority_calculation (flux_plugin_t *p,
@@ -60,10 +62,13 @@ int64_t priority_calculation (flux_plugin_t *p,
                               int urgency)
 {
     double fshare_factor = 0.0, priority = 0.0;
-    int fshare_weight;
+    int qos_factor = 0;
+
+    int fshare_weight, qos_weight;
     struct bank_info *b;
 
     fshare_weight = 100000;
+    qos_weight = 1000;
 
     if (urgency == FLUX_JOB_URGENCY_HOLD)
         return FLUX_JOB_PRIORITY_MIN;
@@ -83,11 +88,18 @@ int64_t priority_calculation (flux_plugin_t *p,
         return 0;
     }
 
+    // get factors for priority calculation from passed in bank_info struct
     fshare_factor = b->fairshare;
+    qos_factor = b->qos_factor;
 
-    priority = (fshare_weight * fshare_factor) + (urgency - 16);
+    priority = round ((fshare_weight * fshare_factor) +
+                      (qos_weight * qos_factor) +
+                      (urgency - 16));
 
-    return abs (round (priority));
+    if (priority < 0)
+        return FLUX_JOB_PRIORITY_MIN;
+
+    return priority;
 }
 
 
