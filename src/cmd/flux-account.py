@@ -239,7 +239,7 @@ def add_update_usage_arg(subparsers):
     )
     subparser_update_usage.set_defaults(func="update_usage")
     subparser_update_usage.add_argument(
-        "job_archive_db_path",
+        "--job_archive_db_path",
         help="job-archive DB location",
         metavar="JOB-ARCHIVE_DB_PATH",
     )
@@ -370,7 +370,12 @@ def select_accounting_function(args, conn, output_file, parser):
     elif args.func == "edit_bank":
         b.edit_bank(conn, args.bank, args.shares)
     elif args.func == "update_usage":
-        jobs_conn = establish_sqlite_connection(args.job_archive_db_path)
+        job_archive_path = (
+            args.job_archive_db_path
+            if args.job_archive_db_path
+            else fluxacct.accounting.job_archive_db_path
+        )
+        jobs_conn = establish_sqlite_connection(job_archive_path)
         jobs.update_job_usage(conn, jobs_conn, args.priority_decay_half_life)
     elif args.func == "add_qos":
         q.add_qos(conn, args.qos, args.priority)
