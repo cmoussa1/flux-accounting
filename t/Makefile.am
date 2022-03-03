@@ -26,22 +26,22 @@ EXTRA_DIST= \
 	sharness.sh \
 	sharness.d \
 	rc \
-	expected/custom_small_tie_parsable.txt \
-	expected/help_message.txt \
-	expected/out_of_insert_order.txt \
 	expected/post_fshare_update.expected \
 	expected/pre_fshare_update.expected \
-	expected/small_no_tie_parsable.txt \
-	expected/small_no_tie.txt \
-	expected/small_tie_all_parsable.txt \
-	expected/small_tie_all.txt \
-	expected/small_tie_parsable.txt \
-	expected/small_tie.txt \
-	expected/test_dbs/out_of_insert_order.db \
-	expected/test_dbs/small_no_tie.db \
-	expected/test_dbs/small_tie_all.db \
-	expected/test_dbs/small_tie_zero_shares.db \
-	expected/test_dbs/small_tie.db \
+	expected/print_hierarchy/custom_small_tie_parsable.expected \
+	expected/print_hierarchy/help_message.expected \
+	expected/print_hierarchy/out_of_insert_order.expected \
+	expected/print_hierarchy/small_no_tie_parsable.expected \
+	expected/print_hierarchy/small_no_tie.expected \
+	expected/print_hierarchy/small_tie_all_parsable.expected \
+	expected/print_hierarchy/small_tie_all.expected \
+	expected/print_hierarchy/small_tie_parsable.expected \
+	expected/print_hierarchy/small_tie.expected \
+	expected/print_hierarchy/out_of_insert_order.db \
+	expected/print_hierarchy/small_no_tie.db \
+	expected/print_hierarchy/small_tie_all.db \
+	expected/print_hierarchy/small_tie_zero_shares.db \
+	expected/print_hierarchy/small_tie.db \
 	expected/flux_account/A_bank.expected \
 	expected/flux_account/D_bank.expected \
 	expected/flux_account/full_hierarchy.expected \
