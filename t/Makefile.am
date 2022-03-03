@@ -26,8 +26,8 @@ EXTRA_DIST= \
 	sharness.sh \
 	sharness.d \
 	rc \
-	expected/post_fshare_update.expected \
-	expected/pre_fshare_update.expected \
+	expected/update_fshare/post_fshare_update.expected \
+	expected/update_fshare/pre_fshare_update.expected \
 	expected/print_hierarchy/custom_small_tie_parsable.expected \
 	expected/print_hierarchy/help_message.expected \
 	expected/print_hierarchy/out_of_insert_order.expected \
