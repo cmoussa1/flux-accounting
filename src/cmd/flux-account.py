@@ -20,13 +20,13 @@ from fluxacct.accounting import create_db as c
 from fluxacct.accounting import queue_subcommands as qu
 
 
-def add_path_arg(parser):
+def add_path(parser):
     parser.add_argument(
         "-p", "--path", dest="path", help="specify location of database file"
     )
 
 
-def add_output_file_arg(parser):
+def add_output_file(parser):
     parser.add_argument(
         "-o",
         "--output-file",
@@ -35,15 +35,30 @@ def add_output_file_arg(parser):
     )
 
 
-def add_view_user_arg(subparsers):
+def add_create_db(subparsers):
+    subparser_create_db = subparsers.add_parser(
+        "create-db", help="create the flux-accounting database"
+    )
+    subparser_create_db.set_defaults(func="create_db")
+    subparser_create_db.add_argument(
+        "--priority-usage-reset-period",
+        help="the number of weeks at which usage information gets reset to 0",
+        metavar=("PRIORITY USAGE RESET PERIOD"),
+    )
+    subparser_create_db.add_argument(
+        "--priority-decay-half-life",
+        help="contribution of historical usage in weeks on the composite usage value",
+        metavar=("PRIORITY DECAY HALF LIFE"),
+    )
+
+
+def add_user_commands(subparsers):
     subparser_view_user = subparsers.add_parser(
         "view-user", help="view a user's information in the accounting database"
     )
     subparser_view_user.set_defaults(func="view_user")
     subparser_view_user.add_argument("username", help="username", metavar=("USERNAME"))
 
-
-def add_add_user_arg(subparsers):
     subparser_add_user = subparsers.add_parser(
         "add-user", help="add a user to the accounting database"
     )
@@ -89,8 +104,6 @@ def add_add_user_arg(subparsers):
         metavar="QUEUES",
     )
 
-
-def add_delete_user_arg(subparsers):
     subparser_delete_user = subparsers.add_parser(
         "delete-user", help="remove a user from the accounting database"
     )
@@ -100,8 +113,6 @@ def add_delete_user_arg(subparsers):
     )
     subparser_delete_user.add_argument("bank", help="bank", metavar=("BANK"))
 
-
-def add_edit_user_arg(subparsers):
     subparser_edit_user = subparsers.add_parser("edit-user", help="edit a user's value")
     subparser_edit_user.set_defaults(func="edit_user")
     subparser_edit_user.add_argument(
@@ -147,52 +158,7 @@ def add_edit_user_arg(subparsers):
     )
 
 
-def add_view_job_records_arg(subparsers):
-    subparser_view_job_records = subparsers.add_parser(
-        "view-job-records", help="view job records"
-    )
-    subparser_view_job_records.set_defaults(func="view_job_records")
-    subparser_view_job_records.add_argument(
-        "-u",
-        "--user",
-        help="username",
-        metavar="USERNAME",
-    )
-    subparser_view_job_records.add_argument(
-        "-j", "--jobid", help="jobid", metavar="JOBID"
-    )
-    subparser_view_job_records.add_argument(
-        "-a",
-        "--after-start-time",
-        help="start time",
-        metavar="START TIME",
-    )
-    subparser_view_job_records.add_argument(
-        "-b",
-        "--before-end-time",
-        help="end time",
-        metavar="END TIME",
-    )
-
-
-def add_create_db_arg(subparsers):
-    subparser_create_db = subparsers.add_parser(
-        "create-db", help="create the flux-accounting database"
-    )
-    subparser_create_db.set_defaults(func="create_db")
-    subparser_create_db.add_argument(
-        "--priority-usage-reset-period",
-        help="the number of weeks at which usage information gets reset to 0",
-        metavar=("PRIORITY USAGE RESET PERIOD"),
-    )
-    subparser_create_db.add_argument(
-        "--priority-decay-half-life",
-        help="contribution of historical usage in weeks on the composite usage value",
-        metavar=("PRIORITY DECAY HALF LIFE"),
-    )
-
-
-def add_add_bank_arg(subparsers):
+def add_bank_commands(subparsers):
     subparser_add_bank = subparsers.add_parser("add-bank", help="add a new bank")
     subparser_add_bank.set_defaults(func="add_bank")
     subparser_add_bank.add_argument(
@@ -207,8 +173,6 @@ def add_add_bank_arg(subparsers):
         "shares", help="number of shares to allocate to bank", metavar="SHARES"
     )
 
-
-def add_view_bank_arg(subparsers):
     subparser_view_bank = subparsers.add_parser(
         "view-bank", help="view bank information"
     )
@@ -235,8 +199,6 @@ def add_view_bank_arg(subparsers):
         metavar="USERS",
     )
 
-
-def add_delete_bank_arg(subparsers):
     subparser_delete_bank = subparsers.add_parser("delete-bank", help="remove a bank")
     subparser_delete_bank.set_defaults(func="delete_bank")
     subparser_delete_bank.add_argument(
@@ -245,8 +207,6 @@ def add_delete_bank_arg(subparsers):
         metavar="BANK",
     )
 
-
-def add_edit_bank_arg(subparsers):
     subparser_edit_bank = subparsers.add_parser(
         "edit-bank", help="edit a bank's allocation"
     )
@@ -263,26 +223,7 @@ def add_edit_bank_arg(subparsers):
     )
 
 
-def add_update_usage_arg(subparsers):
-    subparser_update_usage = subparsers.add_parser(
-        "update-usage", help="update usage factors for associations"
-    )
-    subparser_update_usage.set_defaults(func="update_usage")
-    subparser_update_usage.add_argument(
-        "job_archive_db_path",
-        help="job-archive DB location",
-        metavar="JOB-ARCHIVE_DB_PATH",
-    )
-    subparser_update_usage.add_argument(
-        "--priority-decay-half-life",
-        default=1,
-        type=int,
-        help="number of weeks for a job's usage contribution to a half-life decay",
-        metavar="PRIORITY DECAY HALF LIFE",
-    )
-
-
-def add_add_queue_arg(subparsers):
+def add_queue_commands(subparsers):
     subparser_add_queue = subparsers.add_parser("add-queue", help="add a new queue")
 
     subparser_add_queue.set_defaults(func="add_queue")
@@ -312,8 +253,6 @@ def add_add_queue_arg(subparsers):
         metavar="PRIORITY",
     )
 
-
-def add_view_queue_arg(subparsers):
     subparser_view_queue = subparsers.add_parser(
         "view-queue", help="view queue information"
     )
@@ -321,8 +260,6 @@ def add_view_queue_arg(subparsers):
     subparser_view_queue.set_defaults(func="view_queue")
     subparser_view_queue.add_argument("queue", help="queue name", metavar="QUEUE")
 
-
-def add_edit_queue_arg(subparsers):
     subparser_edit_queue = subparsers.add_parser(
         "edit-queue", help="edit a queue's priority"
     )
@@ -354,8 +291,6 @@ def add_edit_queue_arg(subparsers):
         metavar="PRIORITY",
     )
 
-
-def add_delete_queue_arg(subparsers):
     subparser_delete_queue = subparsers.add_parser(
         "delete-queue", help="remove a queue"
     )
@@ -364,24 +299,62 @@ def add_delete_queue_arg(subparsers):
     subparser_delete_queue.add_argument("queue", help="queue name", metavar="QUEUE")
 
 
+def add_view_job_records(subparsers):
+    subparser_view_job_records = subparsers.add_parser(
+        "view-job-records", help="view job records"
+    )
+    subparser_view_job_records.set_defaults(func="view_job_records")
+    subparser_view_job_records.add_argument(
+        "-u",
+        "--user",
+        help="username",
+        metavar="USERNAME",
+    )
+    subparser_view_job_records.add_argument(
+        "-j", "--jobid", help="jobid", metavar="JOBID"
+    )
+    subparser_view_job_records.add_argument(
+        "-a",
+        "--after-start-time",
+        help="start time",
+        metavar="START TIME",
+    )
+    subparser_view_job_records.add_argument(
+        "-b",
+        "--before-end-time",
+        help="end time",
+        metavar="END TIME",
+    )
+
+
+def add_update_usage(subparsers):
+    subparser_update_usage = subparsers.add_parser(
+        "update-usage", help="update usage factors for associations"
+    )
+    subparser_update_usage.set_defaults(func="update_usage")
+    subparser_update_usage.add_argument(
+        "job_archive_db_path",
+        help="job-archive DB location",
+        metavar="JOB-ARCHIVE_DB_PATH",
+    )
+    subparser_update_usage.add_argument(
+        "--priority-decay-half-life",
+        default=1,
+        type=int,
+        help="number of weeks for a job's usage contribution to a half-life decay",
+        metavar="PRIORITY DECAY HALF LIFE",
+    )
+
+
 def add_arguments_to_parser(parser, subparsers):
-    add_path_arg(parser)
-    add_output_file_arg(parser)
-    add_view_user_arg(subparsers)
-    add_add_user_arg(subparsers)
-    add_delete_user_arg(subparsers)
-    add_edit_user_arg(subparsers)
-    add_view_job_records_arg(subparsers)
-    add_create_db_arg(subparsers)
-    add_add_bank_arg(subparsers)
-    add_view_bank_arg(subparsers)
-    add_delete_bank_arg(subparsers)
-    add_edit_bank_arg(subparsers)
-    add_update_usage_arg(subparsers)
-    add_add_queue_arg(subparsers)
-    add_view_queue_arg(subparsers)
-    add_edit_queue_arg(subparsers)
-    add_delete_queue_arg(subparsers)
+    add_path(parser)
+    add_output_file(parser)
+    add_create_db(subparsers)
+    add_user_commands(subparsers)
+    add_bank_commands(subparsers)
+    add_queue_commands(subparsers)
+    add_view_job_records(subparsers)
+    add_update_usage(subparsers)
 
 
 def set_db_location(args):
