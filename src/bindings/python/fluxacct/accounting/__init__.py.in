@@ -1,4 +1,7 @@
 db_dir = "@X_LOCALSTATEDIR@/lib/flux/"
 db_path = "@X_LOCALSTATEDIR@/lib/flux/FluxAccounting.db"
 
-__all__ = ["db_dir", "db_path"]
+job_archive_db_dir = "@X_LOCALSTATEDIR@/lib/flux/"
+job_archive_db_path = "@X_LOCALSTATEDIR@/lib/flux/jobs.db"
+
+__all__ = ["db_dir", "db_path", "job_archive_db_dir", "job_archive_db_path"]

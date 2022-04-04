@@ -34,7 +34,7 @@ test_expect_success 'create sample job-archive DB' '
 '
 
 test_expect_success 'update-usage raises a usage error when passing a bad type for priority-decay-half-life' '
-	test_must_fail flux account -p ${DB_PATH} update-usage job-archive.sqlite \
+	test_must_fail flux account -p ${DB_PATH} update-usage --job-archive-db-path job-archive.sqlite \
 		--priority-decay-half-life foo > bad_arg.out 2>&1 &&
 	test_debug "cat bad_arg.out" &&
 	grep "flux-account.py update-usage: error: argument --priority-decay-half-life: invalid int value:" bad_arg.out
@@ -46,7 +46,7 @@ test_expect_success 'create & compare hierarchy output from FluxAccountingTest.d
 '
 
 test_expect_success 'run update-usage and update-fshare commands' '
-	flux account -p ${DB_PATH} update-usage job-archive.sqlite &&
+	flux account -p ${DB_PATH} update-usage --job-archive-db-path job-archive.sqlite &&
 	flux account-update-fshare -p ${DB_PATH}
 '
 
@@ -56,7 +56,7 @@ test_expect_success 'create & compare hierarchy output from FluxAccountingTest.d
 '
 
 test_expect_success 'run update-usage and update-fshare commands with an optional arg' '
-	flux account -p ${DB_PATH} update-usage job-archive.sqlite --priority-decay-half-life 1 &&
+	flux account -p ${DB_PATH} update-usage --job-archive-db-path job-archive.sqlite --priority-decay-half-life 1 &&
 	flux account-update-fshare -p ${DB_PATH}
 '
 

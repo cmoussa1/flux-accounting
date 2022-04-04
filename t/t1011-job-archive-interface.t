@@ -80,7 +80,7 @@ test_expect_success 'submit some sleep 1 jobs under one user' '
 '
 
 test_expect_success 'run update-usage and update-fshare commands' '
-	flux account -p ${DB_PATH} update-usage ${ARCHIVEDB} &&
+	flux account -p ${DB_PATH} update-usage --job-archive-db-path ${ARCHIVEDB} &&
 	flux account-update-fshare -p ${DB_PATH}
 '
 
@@ -99,7 +99,7 @@ test_expect_success 'submit some sleep 1 jobs under the secondary bank of the sa
 '
 
 test_expect_success 'run update-usage and update-fshare commands' '
-	flux account -p ${DB_PATH} update-usage ${ARCHIVEDB} &&
+	flux account -p ${DB_PATH} update-usage --job-archive-db-path ${ARCHIVEDB} &&
 	flux account-update-fshare -p ${DB_PATH}
 '
 
