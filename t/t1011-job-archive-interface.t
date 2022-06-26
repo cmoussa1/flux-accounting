@@ -86,7 +86,7 @@ test_expect_success 'run update-usage and update-fshare commands' '
 
 test_expect_success 'check that job usage and fairshare values get updated' '
 	flux account-shares -p $(pwd)/FluxAccountingTest.db > post_update1.test &&
-	grep "account1" post_update1.test | grep "4" | grep "0.25"
+	grep "account1" | grep "4" | grep "0.25" post_update1.test
 '
 
 test_expect_success 'submit some sleep 1 jobs under the secondary bank of the same user ' '
@@ -105,7 +105,7 @@ test_expect_success 'run update-usage and update-fshare commands' '
 
 test_expect_success 'check that job usage and fairshare values get updated' '
 	flux account-shares -p $(pwd)/FluxAccountingTest.db > post_update2.test &&
-	grep "account2" post_update2.test | grep "4" | grep "0.5"
+	grep "account2" | grep "4" | grep "0.5" post_update2.test
 '
 
 test_expect_success 'remove flux-accounting DB' '
