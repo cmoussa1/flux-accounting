@@ -100,14 +100,14 @@ test_expect_success 'successfully update flux-accounting DB from v0.10.0' '
 test_expect_success 'successfully update flux-accounting DB from v0.11.0' '
 	cp ${DB_v0_11_0} tmp_v0_11_0.db &&
 	chmod 666 tmp_v0_11_0.db &&
-	flux account-update-db -p tmp_v0_11_0.db ${DB_PATHv2} &&
+	flux account-update-db -p tmp_v0_11_0.db &&
 	rm tmp_v0_11_0.db
 '
 
 test_expect_success 'successfully update flux-accounting DB from v0.12.0' '
 	cp ${DB_v0_12_0} tmp_v0_12_0.db &&
 	chmod 666 tmp_v0_12_0.db &&
-	flux account-update-db -p tmp_v0_12_0.db ${DB_PATHv2} &&
+	flux account-update-db -p tmp_v0_12_0.db &&
 	rm tmp_v0_12_0.db
 '
 
