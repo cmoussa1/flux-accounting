@@ -53,10 +53,6 @@ EXTRA_DIST= \
 	expected/test_dbs/small_tie_zero_shares.db \
 	expected/test_dbs/small_tie.db \
 	expected/test_dbs/FluxAccountingv0-10-0.db \
-	expected/test_dbs/FluxAccountingv0-11-0.db \
-	expected/test_dbs/FluxAccountingv0-12-0.db \
-	expected/test_dbs/FluxAccountingv0-13-0.db \
-	expected/test_dbs/FluxAccountingv0-14-0.db \
 	expected/flux_account/A_bank.expected \
 	expected/flux_account/D_bank.expected \
 	expected/flux_account/full_hierarchy.expected \
