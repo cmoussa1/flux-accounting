@@ -6,11 +6,8 @@ test_description='Test flux account-update-db command'
 DB_PATHv1=$(pwd)/FluxAccountingTestv1.db
 DB_PATHv2=$(pwd)/FluxAccountingTestv2.db
 DB_v0_10_0=${SHARNESS_TEST_SRCDIR}/expected/test_dbs/FluxAccountingv0-10-0.db
-# DB_v0_11_0=${SHARNESS_TEST_SRCDIR}/expected/test_dbs/FluxAccountingv0-11-0.db
-# DB_v0_12_0=${SHARNESS_TEST_SRCDIR}/expected/test_dbs/FluxAccountingv0-12-0.db
-# DB_v0_13_0=${SHARNESS_TEST_SRCDIR}/expected/test_dbs/FluxAccountingv0-13-0.db
-# DB_v0_14_0=${SHARNESS_TEST_SRCDIR}/expected/test_dbs/FluxAccountingv0-14-0.db
-# DB_v0_15_0=${SHARNESS_TEST_SRCDIR}/expected/test_dbs/FluxAccountingv0-15-0.db
+DB_v0_11_0=${SHARNESS_TEST_SRCDIR}/expected/test_dbs/FluxAccountingv0-11-0.db
+DB_v0_12_0=${SHARNESS_TEST_SRCDIR}/expected/test_dbs/FluxAccountingv0-12-0.db
 MODIFY_DB=${SHARNESS_TEST_SRCDIR}/scripts/modify_accounting_db.py
 CHECK_TABLES=${SHARNESS_TEST_SRCDIR}/scripts/check_db_info.py
 
@@ -95,31 +92,23 @@ test_expect_success 'get all the columns from the queue_table and make sure the 
 
 test_expect_success 'successfully update flux-accounting DB from v0.10.0' '
 	cp ${DB_v0_10_0} tmp_v0_10_0.db &&
-	flux account-update-db -p tmp_v0_10_0.db
+	chmod 666 tmp_v0_10_0.db &&
+	flux account-update-db -p tmp_v0_10_0.db &&
+	rm tmp_v0_10_0.db
 '
 
-# test_expect_success 'successfully update flux-accounting DB from v0.11.0' '
-# 	flux account-update-db -p ${DB_v0_11_0}
-# '
+test_expect_success 'successfully update flux-accounting DB from v0.11.0' '
+	cp ${DB_v0_11_0} tmp_v0_11_0.db &&
+	chmod 666 tmp_v0_11_0.db &&
+	flux account-update-db -p tmp_v0_11_0.db ${DB_PATHv2} &&
+	rm tmp_v0_11_0.db
+'
 
-# test_expect_success 'successfully update flux-accounting DB from v0.12.0' '
-# 	flux account-update-db -p ${DB_v0_12_0}
-# '
-
-# test_expect_success 'successfully update flux-accounting DB from v0.13.0' '
-# 	flux account-update-db -p ${DB_v0_13_0}
-# '
-
-# test_expect_success 'successfully update flux-accounting DB from v0.14.0' '
-# 	flux account-update-db -p ${DB_v0_14_0}
-# '
-
-# test_expect_success 'successfully update flux-accounting DB from v0.15.0' '
-# 	flux account-update-db -p ${DB_v0_15_0}
-# '
-
-test_expect_success 'remove old DBs' '
-	rm tmp_v0_10_0.db
+test_expect_success 'successfully update flux-accounting DB from v0.12.0' '
+	cp ${DB_v0_12_0} tmp_v0_12_0.db &&
+	chmod 666 tmp_v0_12_0.db &&
+	flux account-update-db -p tmp_v0_12_0.db ${DB_PATHv2} &&
+	rm tmp_v0_12_0.db
 '
 
 test_done
