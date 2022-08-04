@@ -10,6 +10,7 @@ DB_v0_11_0=${SHARNESS_TEST_SRCDIR}/expected/test_dbs/FluxAccountingv0-11-0.db
 DB_v0_12_0=${SHARNESS_TEST_SRCDIR}/expected/test_dbs/FluxAccountingv0-12-0.db
 DB_v0_13_0=${SHARNESS_TEST_SRCDIR}/expected/test_dbs/FluxAccountingv0-13-0.db
 DB_v0_14_0=${SHARNESS_TEST_SRCDIR}/expected/test_dbs/FluxAccountingv0-14-0.db
+DB_v0_15_0=${SHARNESS_TEST_SRCDIR}/expected/test_dbs/FluxAccountingv0-15-0.db
 MODIFY_DB=${SHARNESS_TEST_SRCDIR}/scripts/modify_accounting_db.py
 CHECK_TABLES=${SHARNESS_TEST_SRCDIR}/scripts/check_db_info.py
 
@@ -110,6 +111,10 @@ test_expect_success 'successfully update flux-accounting DB from v0.13.0' '
 
 test_expect_success 'successfully update flux-accounting DB from v0.14.0' '
 	flux account-update-db -p ${DB_v0_14_0}
+'
+
+test_expect_success 'successfully update flux-accounting DB from v0.15.0' '
+	flux account-update-db -p ${DB_v0_15_0}
 '
 
 test_done
