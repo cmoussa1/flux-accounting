@@ -46,43 +46,9 @@ def validate_project(conn, projects):
     return ",".join(project_list)
 
 
-def view_user(conn, user):
-    cur = conn.cursor()
-    try:
-        # get the information pertaining to a user in the DB
-        cur.execute("SELECT * FROM association_table where username=?", (user,))
-        rows = cur.fetchall()
-        headers = [description[0] for description in cur.description]
-        if not rows:
-            print("User not found in association_table")
-        else:
-            # print column names of association_table
-            for header in headers:
-                print(header.ljust(18), end=" ")
-            print()
-            for row in rows:
-                for col in list(row):
-                    print(str(col).ljust(18), end=" ")
-                print()
-    except sqlite3.OperationalError as e_database_error:
-        print(e_database_error)
-
-
-def add_user(
-    conn,
-    username,
-    bank,
-    uid=65534,
-    shares=1,
-    max_running_jobs=5,
-    max_active_jobs=7,
-    max_nodes=2147483647,
-    queues="",
-    projects="*",
-):
+def set_uid(username, uid):
 
     if uid == 65534:
-        # get uid of user
         fetched_uid = get_uid(username)
 
         try:
@@ -92,29 +58,40 @@ def add_user(
                 raise KeyError
         except KeyError:
             print("could not find UID for user; adding default UID")
+            uid = 65534
 
-    # check for a default bank of the user being added; if the user is new, set
-    # the first bank they were added to as their default bank
-    cur = conn.cursor()
+    return uid
+
+
+def print_user_rows(headers, rows):
+    # find length of longest column name
+    col_width = len(sorted(headers, key=len)[-1])
+
+    for header in headers:
+        print(header.ljust(col_width), end=" ")
+    print()
+    for row in rows:
+        for col in list(row):
+            print(str(col).ljust(col_width), end=" ")
+        print()
+
+
+# check for a default bank of the user being added; if the user is new, set
+# the first bank they were added to as their default bank
+def set_default_bank(cur, username, bank):
     select_stmt = "SELECT default_bank FROM association_table WHERE username=?"
     cur.execute(select_stmt, (username,))
     row = cur.fetchone()
 
     if row is None:
-        default_bank = bank
-    else:
-        default_bank = row[0]
+        return bank
 
-    # validate the queue specified if any were passed in
-    if queues != "":
-        try:
-            validate_queue(conn, queues)
-        except ValueError as err:
-            print(err)
-            return -1
+    return row[0]
 
-    # check if user/bank entry already exists but was disabled first; if so,
-    # just update the 'active' column in already existing row
+
+# check if user/bank entry already exists but was disabled first; if so,
+# just update the 'active' column in already existing row
+def check_if_user_disabled(conn, cur, username, bank):
     cur.execute(
         "SELECT * FROM association_table WHERE username=? AND bank=?",
         (
@@ -132,6 +109,55 @@ def add_user(
             ),
         )
         conn.commit()
+        return True
+
+    return False
+
+
+def view_user(conn, user):
+    cur = conn.cursor()
+    try:
+        # get the information pertaining to a user in the DB
+        cur.execute("SELECT * FROM association_table where username=?", (user,))
+        rows = cur.fetchall()
+        headers = [description[0] for description in cur.description]  # column names
+        if not rows:
+            print("User not found in association_table")
+        else:
+            print_user_rows(headers, rows)
+    except sqlite3.OperationalError as e_database_error:
+        print(e_database_error)
+
+
+def add_user(
+    conn,
+    username,
+    bank,
+    uid=65534,
+    shares=1,
+    max_running_jobs=5,
+    max_active_jobs=7,
+    max_nodes=2147483647,
+    queues="",
+    projects="*",
+):
+    cur = conn.cursor()
+
+    userid = set_uid(username, uid)
+
+    # set default bank for user
+    default_bank = set_default_bank(cur, username, bank)
+
+    # validate the queue specified if any were passed in
+    if queues != "":
+        try:
+            validate_queue(conn, queues)
+        except ValueError as err:
+            print(err)
+            return -1
+
+    # if True, we don't need to execute an add statement, so just return
+    if check_if_user_disabled(conn, cur, username, bank):
         return 0
 
     # validate the project(s) specified if any were passed in;
@@ -167,7 +193,7 @@ def add_user(
                 int(time.time()),
                 int(time.time()),
                 username,
-                uid,
+                userid,
                 bank,
                 default_bank,
                 shares,
