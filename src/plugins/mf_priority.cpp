@@ -717,6 +717,8 @@ static void add_missing_bank_info (flux_plugin_t *p, flux_t *h, int userid)
     b->cur_active_jobs = 0;
     b->active = 1;
     b->held_jobs = std::vector<long int>();
+    b->projects = { "*" };
+    b->def_project = "*";
 
     if (flux_jobtap_job_aux_set (p,
                                  FLUX_JOBTAP_CURRENT_JOB,
