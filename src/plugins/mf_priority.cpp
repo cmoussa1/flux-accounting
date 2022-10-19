@@ -687,17 +687,19 @@ static int priority_cb (flux_plugin_t *p,
     int urgency, userid;
     char *bank = NULL;
     char *queue = NULL;
+    char *project = NULL;
     int64_t priority;
     struct bank_info *b;
 
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:i, s:i, s{s{s{s?s, s?s}}}}",
+                                "{s:i, s:i, s{s{s{s?s, s?s, s?s}}}}",
                                 "urgency", &urgency,
                                 "userid", &userid,
                                 "jobspec", "attributes", "system",
-                                "bank", &bank, "queue", &queue) < 0) {
+                                "bank", &bank, "queue", &queue,
+                                "project", &project) < 0) {
         flux_log (h,
                   LOG_ERR,
                   "flux_plugin_arg_unpack: %s",
@@ -758,6 +760,17 @@ static int priority_cb (flux_plugin_t *p,
                                     bank_it->second.queue_factor,
                                     queue) < 0)
                 return -1;
+
+            if (project == NULL) {
+                // add default project to main eventlog via jobspec-update
+                if (update_jobspec_project (p, userid, bank, project) < 0) {
+                    flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
+                                                 "mf_priority", 0, "failed to update "
+                                                 "jobspec with project name");
+
+                    return -1;
+                }
+            }
 
             // if we get here, the bank was unknown when this job was first
             // accepted, and therefore the active job counts for this
@@ -926,6 +939,17 @@ static int validate_cb (flux_plugin_t *p,
     // submitted jobs will be rejected
     if (max_active_jobs > 0 && cur_active_jobs >= max_active_jobs)
         return flux_jobtap_reject_job (p, args, "user has max active jobs");
+
+    // if using a default project, add it to main eventlog via jobspec-update
+    if (project == NULL) {
+        if (update_jobspec_project (p, userid, bank, project) < 0) {
+            flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
+                                         "mf_priority", 0, "failed to update "
+                                         "jobspec with project name");
+
+            return -1;
+        }
+    }
 
     return 0;
 }
