@@ -21,7 +21,7 @@ def view_queue(conn, queue):
         headers = [description[0] for description in cur.description]
         queue_str = ""
         if not rows:
-            raise ValueError(f"Queue {queue} not found in queue_table")
+            raise ValueError(f"queue {queue} not found in queue_table")
 
         # print column names of queue_table
         for header in headers:
@@ -63,8 +63,8 @@ def add_queue(conn, queue, min_nodes=1, max_nodes=1, max_time=60, priority=0):
 
         return 0
     # make sure entry is unique
-    except sqlite3.IntegrityError as integrity_error:
-        return integrity_error
+    except sqlite3.IntegrityError:
+        raise sqlite3.IntegrityError(f"queue {queue} already exists in queue_table")
 
 
 def delete_queue(conn, queue):
@@ -97,10 +97,7 @@ def edit_queue(
         if params[field] is not None:
             # check that the passed in value is truly an integer
             if not isinstance(params[field], int):
-                try:
-                    raise ValueError("passed in value must be an integer")
-                except ValueError as val_err:
-                    return f"error editing field for queue: {val_err}"
+                raise ValueError("passed in value must be an integer")
 
             update_stmt = "UPDATE queue_table SET " + field
 
