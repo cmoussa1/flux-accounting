@@ -45,6 +45,14 @@ extern "C" {
 // the association does not have permission to run jobs under
 #define INVALID_QUEUE -6
 
+// a project was specified for a submitted job that flux-accounting knows about
+// and the association does not have permission to submit jobs under
+#define INVALID_PROJECT -6
+
+// a project is specified for a submitted job that flux-accounting does not
+// know about
+#define UNKNOWN_PROJECT -7
+
 std::map<int, std::map<std::string, struct bank_info>> users;
 std::map<std::string, struct queue_info> queues;
 std::vector<std::string> projects;
@@ -198,6 +206,30 @@ int check_queue_factor (flux_plugin_t *p,
                                      prefix, queue);
         return -1;
     }
+
+    return 0;
+}
+
+
+int validate_project (std::vector<std::string> user_projects, char *project)
+{
+    std::vector<std::string>::iterator vect_it;
+
+    // make sure that if a project is passed in, it exists in flux-accounting's
+    // "projects" vector
+    vect_it = std::find (projects.begin (), projects.end (), project);
+
+    if (vect_it == projects.end ())
+        return UNKNOWN_PROJECT;
+
+    // make sure that if a project is passed in, it is a valid project for the
+    // user to submit jobs under
+    vect_it = std::find (user_projects.begin (),
+                         user_projects.end (),
+                         project);
+
+    if (vect_it == user_projects.end ())
+        return INVALID_PROJECT;
 
     return 0;
 }
@@ -799,6 +831,7 @@ static int validate_cb (flux_plugin_t *p,
     int userid;
     char *bank = NULL;
     char *queue = NULL;
+    char *project = NULL;
     int max_run_jobs, cur_active_jobs, max_active_jobs = 0;
     double fairshare = 0.0;
 
@@ -809,10 +842,11 @@ static int validate_cb (flux_plugin_t *p,
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:i, s{s{s{s?s, s?s}}}}",
+                                "{s:i, s{s{s{s?s, s?s, s?s}}}}",
                                 "userid", &userid,
                                 "jobspec", "attributes", "system",
-                                "bank", &bank, "queue", &queue) < 0) {
+                                "bank", &bank, "queue", &queue,
+                                "project", &project) < 0) {
         return flux_jobtap_reject_job (p, args, "unable to unpack bank arg");
     }
 
@@ -866,6 +900,22 @@ static int validate_cb (flux_plugin_t *p,
     if (bank_it->second.queue_factor == INVALID_QUEUE)
         return flux_jobtap_reject_job (p, args, "Queue not valid for user: %s",
                                        queue);
+
+    // validate project passed in (if any); a job can be rejected if the
+    // following conditions are met:
+    //   - an association submits a job under a project that does not exist
+    //   - an association submits a job under a project they do not belong to
+    if (project != NULL) {
+        int result = validate_project (bank_it->second.projects, project);
+
+        if (result == UNKNOWN_PROJECT)
+            return flux_jobtap_reject_job (p, args, "project does not exist: "
+                                           "%s", project);
+
+        if (result == INVALID_PROJECT)
+            return flux_jobtap_reject_job (p, args, "project not valid for "
+                                           "user: %s", project);
+    }
 
     max_run_jobs = bank_it->second.max_run_jobs;
     fairshare = bank_it->second.fairshare;
