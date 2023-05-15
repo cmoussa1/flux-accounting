@@ -336,6 +336,63 @@ error:
 }
 
 
+static int update_jobspec_project (flux_plugin_t *p,
+                                   int userid,
+                                   char *bank,
+                                   char *project)
+{
+    std::map<int, std::map<std::string, struct bank_info>>::iterator it;
+    std::map<std::string, struct bank_info>::iterator bank_it;
+
+    // if no project was passed in, we need to look up their default one
+    if (project == NULL) {
+        it = users.find (userid);
+        if (it == users.end ())
+            return -1;
+
+        // find out which bank the user is submitting under
+        if (bank != NULL) {
+            bank_it = it->second.find (std::string (bank));
+            if (bank_it == it->second.end ())
+                return -1;
+        } else {
+            bank = const_cast<char*> (users_def_bank[userid].c_str ());
+            bank_it = it->second.find (std::string (bank));
+            if (bank_it == it->second.end ())
+                return -1;
+        }
+
+        // look up user's default project
+        project = const_cast <char *> (bank_it->second.def_project.c_str ());
+    }
+
+    // add project name to jobspec
+    json_t *project_name = json_object ();
+    if (!project_name)
+        return -1;
+
+    if (json_object_set_new (project_name,
+                             "attributes.system.project",
+                             json_string (project)) < 0) {
+        json_decref (project_name);
+        return -1;
+    }
+
+    // post jobspec-update event
+    if (flux_jobtap_event_post_pack (p,
+                                     FLUX_JOBTAP_CURRENT_JOB,
+                                     "jobspec-update", "O",
+                                     project_name) < 0) {
+        json_decref (project_name);
+        return -1;
+    }
+
+    json_decref (project_name);
+
+    return 0;
+}
+
+
 /******************************************************************************
  *                                                                            *
  *                               Callbacks                                    *
