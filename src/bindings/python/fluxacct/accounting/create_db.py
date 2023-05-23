@@ -198,4 +198,36 @@ def create_db(
     conn.execute("INSERT INTO project_table (project) VALUES ('*')")
     conn.commit()
 
+    # Jobs Table
+    # stores job records for associations
+    logging.info("Creating jobs table in DB...")
+    conn.execute(
+        """
+            CREATE TABLE IF NOT EXISTS jobs (
+                id                  integer    PRIMARY KEY NOT NULL,
+                userid              integer                NOT NULL,
+                t_submit            real                   NOT NULL,
+                t_run               real                   NOT NULL,
+                t_inactive          real                   NOT NULL,
+                ranks               tinytext               NOT NULL,
+                R                   tinytext               NOT NULL,
+                jobspec             tinytext               NOT NULL
+            );"""
+    )
+    logging.info("Created jobs table successfully")
+
+    # Last Seen Job Table
+    # stores the timestamp of the last completed job flux-accounting fetched
+    # using job-list
+    logging.info("Creating last_seen_job_table in DB...")
+    conn.execute(
+        """
+            CREATE TABLE IF NOT EXISTS last_seen_job_table (
+                timestamp           real    DEFAULT 0 NOT NULL
+            );"""
+    )
+    conn.execute("INSERT INTO last_seen_job_table (timestamp) VALUES (0.0)")
+    conn.commit()
+    logging.info("Created last_seen_job table successfully...")
+
     conn.close()
