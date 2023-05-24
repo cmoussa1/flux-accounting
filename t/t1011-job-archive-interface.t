@@ -43,6 +43,10 @@ test_expect_success 'start flux-accounting service' '
 	flux account-service -p ${DB_PATH} -t
 '
 
+test_expect_success 'try to run fetch-job-records script with no jobs in jobs_table' '
+	flux account-fetch-job-records -p ${DB_PATH}
+'
+
 test_expect_success 'add some banks to the DB' '
 	flux account add-bank root 1 &&
 	flux account add-bank --parent-bank=root account1 1 &&
@@ -81,16 +85,20 @@ test_expect_success 'submit some sleep 1 jobs under one user' '
 	wait_db $jobid3 ${ARCHIVEDB}
 '
 
+test_expect_success 'run fetch-job-records script' '
+	flux account-fetch-job-records -p ${DB_PATH}
+'
+
 test_expect_success 'view job records for a user' '
-	flux account -p ${ARCHIVEDB} view-job-records --user $username
+	flux account -p ${DB_PATH} view-job-records --user $username
 '
 
 test_expect_success 'view job records for a user and direct it to a file' '
-	flux account -p ${ARCHIVEDB} --output-file $(pwd)/test.txt view-job-records --user $username
+	flux account -p ${DB_PATH} --output-file $(pwd)/test.txt view-job-records --user $username
 '
 
 test_expect_success 'run update-usage and update-fshare commands' '
-	flux account update-usage ${ARCHIVEDB} &&
+	flux account -p ${DB_PATH} update-usage &&
 	flux account-update-fshare -p ${DB_PATH}
 '
 
@@ -108,8 +116,12 @@ test_expect_success 'submit some sleep 1 jobs under the secondary bank of the sa
 	wait_db $jobid3 ${ARCHIVEDB}
 '
 
+test_expect_success 'run custom job-list script' '
+	flux account-fetch-job-records -p ${DB_PATH}
+'
+
 test_expect_success 'run update-usage and update-fshare commands' '
-	flux account update-usage ${ARCHIVEDB} &&
+	flux account -p ${DB_PATH} update-usage &&
 	flux account-update-fshare -p ${DB_PATH}
 '
 
