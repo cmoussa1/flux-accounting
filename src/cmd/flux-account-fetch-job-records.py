@@ -138,6 +138,29 @@ def insert_jobs_in_db(conn, job_records):
     conn.commit()
 
 
+# we calculate where the cut-off is for old jobs using the following algorithm:
+#
+# cut_off_ts = last_seen_timestamp - (how many weeks * 604800)
+#
+# we can calculate how many weeks there are by looking at how many usage_period
+# columns there are in the job_usage_factor_table; it's the number of columns
+# minus 4
+def purge_old_jobs(conn, last_seen_timestamp):
+    cur = conn.cursor()
+
+    # determine the number of weeks are in a usage period by looking at the
+    # flux-accounting DB
+    cur.execute("SELECT * FROM job_usage_factor_table")
+    names = [description[0] for description in cur.description]
+    num_usage_periods = len(names) - 4
+    cut_off_ts = last_seen_timestamp - (num_usage_periods * 604800)
+
+    del_stmt = "DELETE FROM jobs WHERE t_inactive < ?"
+    cur.execute(del_stmt, (cut_off_ts,))
+
+    conn.commit()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="""
@@ -163,9 +186,17 @@ def main():
 
     # if there are new jobs found, the first job seen in job_records
     # will be the last seen completed job
+    last_seen_timestamp = 0
     if len(job_records) > 0:
         last_seen_timestamp = job_records[0]["t_inactive"]
         update_last_seen_job(conn, last_seen_timestamp)
+
+    # if last_seen_timestamp == 0, then we haven't seen any jobs yet, so we
+    # don't need to purge anything
+    if last_seen_timestamp > 0:
+        # finally, we should clean up any old jobs that are no longer
+        # considered by flux-accounting for job usage and fair share
+        purge_old_jobs(conn, last_seen_timestamp)
 
 
 if __name__ == "__main__":
