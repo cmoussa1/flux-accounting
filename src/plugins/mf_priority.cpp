@@ -440,28 +440,16 @@ static int update_jobspec_project (flux_plugin_t *p,
         project = const_cast <char *> (bank_it->second.def_project.c_str ());
     }
 
-    // add project name to jobspec
-    json_t *project_name = json_object ();
-    if (!project_name)
-        return -1;
-
-    if (json_object_set_new (project_name,
-                             "attributes.system.project",
-                             json_string (project)) < 0) {
-        json_decref (project_name);
-        return -1;
-    }
-
     // post jobspec-update event
     if (flux_jobtap_event_post_pack (p,
                                      FLUX_JOBTAP_CURRENT_JOB,
-                                     "jobspec-update", "O",
-                                     project_name) < 0) {
-        json_decref (project_name);
+                                     "jobspec-update",
+                                     "{s:{s:{s:s}}}",
+                                     "attributes",
+                                      "system",
+                                       "project", project) < 0) {
         return -1;
     }
-
-    json_decref (project_name);
 
     return 0;
 }
@@ -803,17 +791,6 @@ static int priority_cb (flux_plugin_t *p,
                                     queue) < 0)
                 return -1;
 
-            if (project == NULL) {
-                // add default project to main eventlog via jobspec-update
-                if (update_jobspec_project (p, userid, bank, project) < 0) {
-                    flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
-                                                 "mf_priority", 0, "failed to update "
-                                                 "jobspec with project name");
-
-                    return -1;
-                }
-            }
-
             // if we get here, the bank was unknown when this job was first
             // accepted, and therefore the active job counts for this
             // job need to be incremented here
@@ -841,6 +818,17 @@ static int priority_cb (flux_plugin_t *p,
                   "flux_plugin_arg_pack: %s",
                   flux_plugin_arg_strerror (args));
         return -1;
+    }
+
+    // if using a default project, add it to main eventlog via jobspec-update
+    if (project == NULL) {
+        if (update_jobspec_project (p, userid, bank, project) < 0) {
+            flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
+                                         "mf_priority", 0, "failed to update "
+                                         "jobspec with project name");
+
+            return -1;
+        }
     }
 
     return 0;
@@ -981,17 +969,6 @@ static int validate_cb (flux_plugin_t *p,
     // submitted jobs will be rejected
     if (max_active_jobs > 0 && cur_active_jobs >= max_active_jobs)
         return flux_jobtap_reject_job (p, args, "user has max active jobs");
-
-    // if using a default project, add it to main eventlog via jobspec-update
-    if (project == NULL) {
-        if (update_jobspec_project (p, userid, bank, project) < 0) {
-            flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
-                                         "mf_priority", 0, "failed to update "
-                                         "jobspec with project name");
-
-            return -1;
-        }
-    }
 
     return 0;
 }
