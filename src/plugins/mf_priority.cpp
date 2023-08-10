@@ -440,38 +440,39 @@ static int update_jobspec_project (flux_plugin_t *p,
         project = const_cast <char *> (bank_it->second.def_project.c_str ());
     }
 
-    // add project name to jobspec
-    json_t *project_name = json_object ();
-    if (!project_name)
-        return -1;
+    // // add project name to jobspec
+    // json_t *project_name = json_object ();
+    // if (!project_name)
+    //     return -1;
 
-    if (json_object_set_new (project_name,
-                             "attributes.system.project",
-                             json_string (project)) < 0) {
-        json_decref (project_name);
-        return -1;
-    }
-
-    // post jobspec-update event
-    if (flux_jobtap_event_post_pack (p,
-                                     FLUX_JOBTAP_CURRENT_JOB,
-                                     "jobspec-update", "O",
-                                     project_name) < 0) {
-        return -1;
-    }
-
-    json_decref (project_name);
+    // if (json_object_set_new (project_name,
+    //                          "attributes.system.project",
+    //                          json_string (project)) < 0) {
+    //     json_decref (project_name);
+    //     return -1;
+    // }
 
     // // post jobspec-update event
     // if (flux_jobtap_event_post_pack (p,
     //                                  FLUX_JOBTAP_CURRENT_JOB,
-    //                                  "jobspec-update",
-    //                                  "{s:{s:{s:s}}}",
-    //                                  "attributes",
-    //                                   "system",
-    //                                    "project", project) < 0) {
+    //                                  "jobspec-update", "O",
+    //                                  project_name) < 0) {
+    //     json_decref (project_name);
     //     return -1;
     // }
+
+    // json_decref (project_name);
+
+    // post jobspec-update event
+    if (flux_jobtap_event_post_pack (p,
+                                     FLUX_JOBTAP_CURRENT_JOB,
+                                     "jobspec-update",
+                                     "{s:{s:{s:s}}}",
+                                     "attributes",
+                                      "system",
+                                       "project", project) < 0) {
+        return -1;
+    }
 
     return 0;
 }
@@ -842,16 +843,16 @@ static int priority_cb (flux_plugin_t *p,
         return -1;
     }
 
-    // if using a default project, add it to main eventlog via jobspec-update
-    if (project == NULL) {
-        if (update_jobspec_project (p, userid, bank, project) < 0) {
-            flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
-                                         "mf_priority", 0, "failed to update "
-                                         "jobspec with project name");
+    // // if using a default project, add it to main eventlog via jobspec-update
+    // if (project == NULL) {
+    //     if (update_jobspec_project (p, userid, bank, project) < 0) {
+    //         flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
+    //                                      "mf_priority", 0, "failed to update "
+    //                                      "jobspec with project name");
 
-            return -1;
-        }
-    }
+    //         return -1;
+    //     }
+    // }
 
     return 0;
 }
@@ -1171,7 +1172,23 @@ static int run_cb (flux_plugin_t *p,
                    void *data)
 {
     int userid;
+    char *bank = NULL;
+    char *project = NULL;
     struct bank_info *b;
+
+    flux_t *h = flux_jobtap_get_flux (p);
+    if (flux_plugin_arg_unpack (args,
+                                FLUX_PLUGIN_ARG_IN,
+                                "{s:i, s{s{s{s?s, s?s}}}}",
+                                "userid", &userid,
+                                "jobspec", "attributes", "system",
+                                "bank", &bank, "project", &project) < 0) {
+        flux_log (h,
+                  LOG_ERR,
+                  "flux_plugin_arg_unpack: %s",
+                  flux_plugin_arg_strerror (args));
+        return -1;
+    }
 
     b = static_cast<bank_info *>
         (flux_jobtap_job_aux_get (p,
@@ -1188,6 +1205,17 @@ static int run_cb (flux_plugin_t *p,
 
     // increment the user's current running jobs count
     b->cur_run_jobs++;
+
+    // if using a default project, add it to main eventlog via jobspec-update
+    if (project == NULL) {
+        if (update_jobspec_project (p, userid, bank, project) < 0) {
+            flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
+                                         "mf_priority", 0, "failed to update "
+                                         "jobspec with project name");
+
+            return -1;
+        }
+    }
 
     return 0;
 }

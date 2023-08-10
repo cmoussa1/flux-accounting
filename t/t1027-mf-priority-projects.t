@@ -51,9 +51,15 @@ test_expect_success 'add user to flux-accounting DB and to plugin; job transitio
 	test $(flux jobs -no {state} ${job0}) = RUN
 '
 
+# test_expect_success 'check that project gets updated for submitted job' '
+# 	flux job info $job0 eventlog > eventlog.out &&
+# 	grep "{\"attributes.system.project\":\"\*\"}" eventlog.out &&
+# 	flux job cancel $job0
+# '
+
 test_expect_success 'check that project gets updated for submitted job' '
 	flux job info $job0 eventlog > eventlog.out &&
-	grep "{\"attributes.system.project\":\"\*\"}" eventlog.out &&
+	grep "{\"attributes\":{\"system\":{\"project\":\"\*\"}" eventlog.out &&
 	flux job cancel $job0
 '
 
@@ -91,11 +97,19 @@ test_expect_success 'submit a job under a project that user does not belong to' 
 	grep "project not valid for user: projectC" project_dnb.out
 '
 
+# test_expect_success 'successfully submit a job under a default project' '
+# 	job2=$(flux python ${SUBMIT_AS} 1001 hostname) &&
+# 	flux job wait-event -f json $job2 priority &&
+# 	flux job info $job2 eventlog > eventlog.out &&
+# 	grep "{\"attributes.system.project\":\"projectA\"}" eventlog.out &&
+# 	flux job cancel $job2
+# '
+
 test_expect_success 'successfully submit a job under a default project' '
 	job2=$(flux python ${SUBMIT_AS} 1001 hostname) &&
 	flux job wait-event -f json $job2 priority &&
 	flux job info $job2 eventlog > eventlog.out &&
-	grep "{\"attributes.system.project\":\"projectA\"}" eventlog.out &&
+	grep "{\"attributes\":{\"system\":{\"project\":\"projectA\"}" eventlog.out &&
 	flux job cancel $job2
 '
 
@@ -106,30 +120,57 @@ test_expect_success 'successfully submit a job under a secondary project' '
 	flux job cancel $job3
 '
 
+# test_expect_success 'update the default project for a user and submit a job under new default' '
+# 	flux account -p ${DB_PATH} edit-user user1001 --default-project=projectB &&
+# 	flux account-priority-update -p ${DB_PATH} &&
+# 	job4=$(flux python ${SUBMIT_AS} 1001 hostname) &&
+# 	flux job info $job4 eventlog > eventlog.out &&
+# 	grep "{\"attributes.system.project\":\"projectB\"}" eventlog.out &&
+# 	flux job cancel $job4
+# '
+
 test_expect_success 'update the default project for a user and submit a job under new default' '
 	flux account -p ${DB_PATH} edit-user user1001 --default-project=projectB &&
 	flux account-priority-update -p ${DB_PATH} &&
 	job4=$(flux python ${SUBMIT_AS} 1001 hostname) &&
 	flux job info $job4 eventlog > eventlog.out &&
-	grep "{\"attributes.system.project\":\"projectB\"}" eventlog.out &&
+	grep "{\"attributes\":{\"system\":{\"project\":\"projectB\"}" eventlog.out &&
 	flux job cancel $job4
 '
+
+# test_expect_success 'add a user without specifying any projects (will add a default project of "*")' '
+# 	flux account -p ${DB_PATH} add-user --username=user1002 --userid=1002 --bank=account1 &&
+# 	flux account-priority-update -p ${DB_PATH} &&
+# 	job5=$(flux python ${SUBMIT_AS} 1002 hostname) &&
+# 	flux job info $job5 eventlog > eventlog.out &&
+# 	grep "{\"attributes.system.project\":\"\*\"}" eventlog.out &&
+# 	flux job cancel $job5
+# '
 
 test_expect_success 'add a user without specifying any projects (will add a default project of "*")' '
 	flux account -p ${DB_PATH} add-user --username=user1002 --userid=1002 --bank=account1 &&
 	flux account-priority-update -p ${DB_PATH} &&
 	job5=$(flux python ${SUBMIT_AS} 1002 hostname) &&
 	flux job info $job5 eventlog > eventlog.out &&
-	grep "{\"attributes.system.project\":\"\*\"}" eventlog.out &&
+	grep "{\"attributes\":{\"system\":{\"project\":\"\*\"}" eventlog.out &&
 	flux job cancel $job5
 '
+
+# test_expect_success 'add a project to the new user and update the plugin' '
+# 	flux account -p ${DB_PATH} edit-user user1002 --projects=projectA --default-project=projectA &&
+# 	flux account-priority-update -p ${DB_PATH} &&
+# 	job6=$(flux python ${SUBMIT_AS} 1002 hostname) &&
+# 	flux job info $job6 eventlog > eventlog.out &&
+# 	grep "{\"attributes.system.project\":\"projectA\"}" eventlog.out &&
+# 	flux job cancel $job6
+# '
 
 test_expect_success 'add a project to the new user and update the plugin' '
 	flux account -p ${DB_PATH} edit-user user1002 --projects=projectA --default-project=projectA &&
 	flux account-priority-update -p ${DB_PATH} &&
 	job6=$(flux python ${SUBMIT_AS} 1002 hostname) &&
 	flux job info $job6 eventlog > eventlog.out &&
-	grep "{\"attributes.system.project\":\"projectA\"}" eventlog.out &&
+	grep "{\"attributes\":{\"system\":{\"project\":\"projectA\"}" eventlog.out &&
 	flux job cancel $job6
 '
 
