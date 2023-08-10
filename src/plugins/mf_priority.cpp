@@ -440,16 +440,38 @@ static int update_jobspec_project (flux_plugin_t *p,
         project = const_cast <char *> (bank_it->second.def_project.c_str ());
     }
 
+    // add project name to jobspec
+    json_t *project_name = json_object ();
+    if (!project_name)
+        return -1;
+
+    if (json_object_set_new (project_name,
+                             "attributes.system.project",
+                             json_string (project)) < 0) {
+        json_decref (project_name);
+        return -1;
+    }
+
     // post jobspec-update event
     if (flux_jobtap_event_post_pack (p,
                                      FLUX_JOBTAP_CURRENT_JOB,
-                                     "jobspec-update",
-                                     "{s:{s:{s:s}}}",
-                                     "attributes",
-                                      "system",
-                                       "project", project) < 0) {
+                                     "jobspec-update", "O",
+                                     project_name) < 0) {
         return -1;
     }
+
+    json_decref (project_name);
+
+    // // post jobspec-update event
+    // if (flux_jobtap_event_post_pack (p,
+    //                                  FLUX_JOBTAP_CURRENT_JOB,
+    //                                  "jobspec-update",
+    //                                  "{s:{s:{s:s}}}",
+    //                                  "attributes",
+    //                                   "system",
+    //                                    "project", project) < 0) {
+    //     return -1;
+    // }
 
     return 0;
 }
