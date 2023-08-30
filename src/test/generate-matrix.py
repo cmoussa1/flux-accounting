@@ -165,4 +165,12 @@ matrix.add_build(
     ),
 )
 
+# bookworm-arm64
+matrix.add_build(
+    name="bookworm",
+    image="bookworm",
+    platform="linux/arm64",
+    docker_tag=True,
+)
+
 print(matrix)
