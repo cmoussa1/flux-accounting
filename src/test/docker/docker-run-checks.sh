@@ -24,7 +24,7 @@ declare -r prog=${0##*/}
 die() { echo -e "$prog: $@"; exit 1; }
 
 #
-declare -r long_opts="help,quiet,interactive,image:,flux-security-version:,jobs:,no-cache,no-home,distcheck,tag:,build-directory:,install-only,no-poison,recheck,inception"
+declare -r long_opts="help,quiet,interactive,image:,flux-security-version:,jobs:,no-cache,no-home,distcheck,tag:,build-directory:,install-only,no-poison,recheck,inception,platform:"
 declare -r short_opts="hqIdi:S:j:t:D:Pr"
 declare -r usage="
 Usage: $prog [OPTIONS] -- [CONFIGURE_ARGS...]\n\
@@ -42,6 +42,7 @@ Options:\n\
  -q, --quiet                   Add --quiet to docker-build\n\
  -t, --tag=TAG                 If checks succeed, tag image as NAME\n\
  -i, --image=NAME              Use base docker image NAME (default=$IMAGE)\n\
+ -p, --platform=NAME           Run on alternate platform (if supported)\n\
  -S, --flux-security-version=N Install flux-security vers N (default=$FLUX_SECURITY_VERSION)\n
  -j, --jobs=N                  Value for make -j (default=$JOBS)\n
  -d, --distcheck               Run 'make distcheck' instead of 'make check'\n\
@@ -69,6 +70,7 @@ while true; do
       -h|--help)                   echo -ne "$usage";          exit 0  ;;
       -q|--quiet)                  QUIET="--quiet";            shift   ;;
       -i|--image)                  IMAGE="$2";                 shift 2 ;;
+      -p|--platform)               PLATFORM="--platform=$2";   shift 2 ;;
       -S|--flux-security-version)  FLUX_SECURITY_VERSION="$2"; shift 2 ;;
       -j|--jobs)                   JOBS="$2";                  shift 2 ;;
       -I|--interactive)            INTERACTIVE="/bin/bash";    shift   ;;
@@ -118,6 +120,7 @@ fi
 
 checks_group "Building image $IMAGE for user $USER $(id -u) group=$(id -g)" \
   docker build \
+    ${PLATFORM} \
     ${NO_CACHE} \
     ${QUIET} \
     --build-arg BASE_IMAGE=$IMAGE \
@@ -135,6 +138,7 @@ if [[ -n "$MOUNT_HOME_ARGS" ]]; then
 fi
 echo "mounting $TOP as /usr/src"
 
+export PLATFORM
 export PROJECT
 export POISON
 export INCEPTION
@@ -148,6 +152,7 @@ if [[ "$INSTALL_ONLY" == "t" ]]; then
     docker run --rm \
         --workdir=/usr/src \
         --volume=$TOP:/usr/src \
+        ${PLATFORM} \
         ${BUILD_IMAGE} \
         sh -c "./autogen.sh &&
                ./configure --prefix=/usr --sysconfdir=/etc &&
@@ -158,7 +163,9 @@ else
     docker run --rm \
         --workdir=/usr/src \
         --volume=$TOP:/usr/src \
+        ${PLATFORM} \
         $MOUNT_HOME_ARGS \
+        -e PLATFORM \
         -e CC \
         -e CXX \
         -e LDFLAGS \
@@ -207,6 +214,7 @@ if test -n "$TAG"; then
 	--workdir=/usr/src/${BUILD_DIR} \
         --volume=$TOP:/usr/src \
         --user="root" \
+    ${PLATFORM} \
 	${BUILD_IMAGE} \
 	sh -c "make install && \
                userdel $USER" \
