@@ -91,7 +91,7 @@ struct queue_info {
 int64_t priority_calculation (flux_plugin_t *p,
                               flux_plugin_arg_t *args,
                               int userid,
-                              char *bank,
+                              const char *bank,
                               int urgency)
 {
     double fshare_factor = 0.0, priority = 0.0;
@@ -135,7 +135,7 @@ int64_t priority_calculation (flux_plugin_t *p,
 
 
 static int get_queue_info (
-                      char *queue,
+                      const char *queue,
                       std::map<std::string, struct bank_info>::iterator bank_it)
 {
     std::map<std::string, struct queue_info>::iterator q_it;
@@ -183,7 +183,7 @@ static void split_string (char *queues, struct bank_info *b)
 
 int check_queue_factor (flux_plugin_t *p,
                         int queue_factor,
-                        char *queue,
+                        const char *queue,
                         char *prefix = (char *) "")
 {
     if (queue_factor == INVALID_QUEUE) {
@@ -534,8 +534,8 @@ static int priority_cb (flux_plugin_t *p,
                         void *data)
 {
     int urgency, userid;
-    char *bank = NULL;
-    char *queue = NULL;
+    const char *bank = NULL;
+    const char *queue = NULL;
     int64_t priority;
     struct bank_info *b;
 
@@ -676,8 +676,8 @@ static int validate_cb (flux_plugin_t *p,
                         void *data)
 {
     int userid;
-    char *bank = NULL;
-    char *queue = NULL;
+    const char *bank = NULL;
+    const char *queue = NULL;
     int max_run_jobs, cur_active_jobs, max_active_jobs = 0;
     double fairshare = 0.0;
 
@@ -766,8 +766,8 @@ static int new_cb (flux_plugin_t *p,
                         void *data)
 {
     int userid;
-    char *bank = NULL;
-    char *queue = NULL;
+    const char *bank = NULL;
+    const char *queue = NULL;
     int max_run_jobs, cur_active_jobs, max_active_jobs = 0;
     double fairshare = 0.0;
     struct bank_info *b;
