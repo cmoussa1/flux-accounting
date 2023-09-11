@@ -963,6 +963,36 @@ static int run_cb (flux_plugin_t *p,
 }
 
 
+static int job_updated (flux_plugin_t *p,
+                        const char *topic,
+                        flux_plugin_arg_t *args,
+                        void *data)
+{
+    int userid;
+    char *bank = NULL;
+    char *queue = NULL;
+    struct bank_info *b;
+
+    flux_t *h = flux_jobtap_get_flux (p);
+    if (flux_plugin_arg_unpack (args,
+                                FLUX_PLUGIN_ARG_IN,
+                                "{s:i, s{s{s{s?s, s?s}}}}",
+                                "userid", &userid,
+                                "jobspec", "attributes", "system",
+                                "bank", &bank, "queue", &queue) < 0) {
+        return flux_jobtap_reject_job (p, args, "unable to unpack bank arg");
+    }
+
+    // grab bank_info struct for user/bank (if any)
+    b = static_cast<bank_info *> (flux_jobtap_job_aux_get (
+                                                    p,
+                                                    FLUX_JOBTAP_CURRENT_JOB,
+                                                    "mf_priority:bank_info"));
+
+    return 0;
+}
+
+
 static int inactive_cb (flux_plugin_t *p,
                         const char *topic,
                         flux_plugin_arg_t *args,
@@ -1032,6 +1062,7 @@ static const struct flux_plugin_handler tab[] = {
     { "job.priority.get", priority_cb, NULL },
     { "job.state.inactive", inactive_cb, NULL },
     { "job.state.depend", depend_cb, NULL },
+    { "job.update", job_updated, NULL},
     { "job.state.run", run_cb, NULL},
     { "plugin.query", query_cb, NULL},
     { 0 },
