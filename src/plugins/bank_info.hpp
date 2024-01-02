@@ -9,6 +9,14 @@
 \************************************************************/
 
 // header file for the bank_info class
+extern "C" {
+#if HAVE_CONFIG_H
+#include "config.h"
+#endif
+#include <flux/core.h>
+#include <flux/jobtap.h>
+#include <jansson.h>
+}
 
 #ifndef BANK_INFO_H
 #define BANK_INFO_H
@@ -21,6 +29,7 @@
 // all attributes are per-user/bank
 class user_bank_info {
 public:
+    // attributes
     std::string bank_name;           // name of bank
     double fairshare;                // fair share value
     int max_run_jobs;                // max number of running jobs
@@ -31,6 +40,9 @@ public:
     std::vector<std::string> queues; // list of accessible queues
     int queue_factor;                // priority factor associated with queue
     int active;                      // active status
+
+    // methods
+    std::string to_json () const;    // convert object to JSON string
 };
 
 // these data structures are defined in the priority plugin
@@ -40,5 +52,13 @@ extern std::map<int, std::string> users_def_bank;
 // get a user_bank_info object that points to user/bank
 // information in users map; return NULL on failure
 user_bank_info* get_user_info (int userid, char *bank);
+
+// scan the users map and look at each user's default bank to see if any one
+// of them have a valid bank, i.e one that is not "DNE"; if any of the users do
+// in fact have a valid bank, return false
+bool check_map_for_dne_only ();
+
+// iterate through the users map and construct a JSON object of each user/bank
+json_t* map_to_json ();
 
 #endif // BANK_INFO_H

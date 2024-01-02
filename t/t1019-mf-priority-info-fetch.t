@@ -55,6 +55,7 @@ test_expect_success 'send flux-accounting DB information to the plugin' '
 
 test_expect_success HAVE_JQ 'fetch plugin state' '
 	flux jobtap query mf_priority.so > query_1.json &&
+	cat query_1.json | jq &&
 	jq ".mf_priority_map" query_1.json > internal_state_1.test &&
 	test_cmp ${EXPECTED_FILES}/internal_state_1.expected internal_state_1.test
 '
