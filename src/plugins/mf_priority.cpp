@@ -622,7 +622,7 @@ static int priority_cb (flux_plugin_t *p,
     char *bank = NULL;
     char *queue = NULL;
     int64_t priority;
-    user_bank_info *b;
+    user_bank_info *user_bank;
 
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
@@ -639,74 +639,64 @@ static int priority_cb (flux_plugin_t *p,
         return -1;
     }
 
-    b = static_cast<user_bank_info *> (flux_jobtap_job_aux_get (
+    user_bank = static_cast<user_bank_info *> (flux_jobtap_job_aux_get (
                                                     p,
                                                     FLUX_JOBTAP_CURRENT_JOB,
                                                     "mf_priority:bank_info"));
 
-    if (b == NULL) {
-        flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB, "mf_priority",
-                                     0, "internal error: bank info is missing");
+    if (user_bank == NULL) {
+        flux_jobtap_raise_exception (p,
+                                     FLUX_JOBTAP_CURRENT_JOB,
+                                     "mf_priority",
+                                     0,
+                                     "internal error: bank info is missing");
 
         return -1;
     }
 
-    std::map<int, std::map<std::string, user_bank_info>>::iterator it;
-    std::map<std::string, user_bank_info>::iterator bank_it;
-
-    if (b->max_run_jobs == BANK_INFO_MISSING) {
-        // try to look up user again
-        it = users.find (userid);
-        if (it == users.end () || check_map_for_dne_only () == true) {
-            // the plugin could still be waiting on flux-accounting data
-            // to be loaded in; keep the job in PRIORITY state
-            return flux_jobtap_priority_unavail (p, args);
-        } else {
-            // make sure user belongs to bank they specified; if no bank was
-            // passed in, look up their default bank
-            if (bank != NULL) {
-                bank_it = it->second.find (std::string (bank));
-                if (bank_it == it->second.end ()) {
-                    flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
-                                                 "mf_priority", 0,
-                                                 "not a member of %s", bank);
-                    return -1;
-                }
-            } else {
-                bank = const_cast<char*> (users_def_bank[userid].c_str ());
-                bank_it = it->second.find (std::string (bank));
-                if (bank_it == it->second.end ()) {
-                    flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
-                                                 "mf_priority", 0,
-                                                 "user/default bank entry "
-                                                 "does not exist");
-                    return -1;
-                }
-            }
-
-            if (bank_it->second.max_run_jobs == BANK_INFO_MISSING) {
+    if (user_bank->max_run_jobs == BANK_INFO_MISSING) {
+        // the user/bank associated with this job could not be found in the
+        // plugin's internal map when the job was first submitted and is held
+        // in PRIORITY by associating the job with special temporary values;
+        // try to look up the user/bank in the internal map again
+        user_bank_info *ub = get_user_info (userid, bank);
+        if (ub == NULL) {
+            if (check_map_for_dne_only () == true)
+                // the plugin is still waiting on flux-accounting data to be
+                // loaded in; keep the job in PRIORITY
                 return flux_jobtap_priority_unavail (p, args);
-            }
 
-            // fetch priority associated with passed-in queue (or default queue)
-            bank_it->second.queue_factor = get_queue_info (
-                                                    queue,
-                                                    bank_it->second.queues);
-            if (check_queue_factor (p,
-                                    bank_it->second.queue_factor,
-                                    queue) < 0)
+            // user/bank does not exist in internal map
+            flux_jobtap_raise_exception (p,
+                                         FLUX_JOBTAP_CURRENT_JOB,
+                                         "mf_priority",
+                                         0,
+                                         "cannot find user/bank or "
+                                         "user/default bank entry for: %i",
+                                         userid);
+            return -1;
+        } else {
+            if (ub->bank_name == "DNE")
+                // user still does not have a valid entry in the users map, so
+                // keep it in PRIORITY
+                return flux_jobtap_priority_unavail (p, args);
+
+            // fetch priority of the associated queue
+            ub->queue_factor = get_queue_info (queue, ub->queues);
+            if (ub->queue_factor == INVALID_QUEUE)
+                // the queue the user/bank specified is invalid
                 return -1;
 
-            // if we get here, the bank was unknown when this job was first
-            // accepted, and therefore the active job counts for this
-            // job need to be incremented here
-            bank_it->second.cur_active_jobs++;
+            // the bank was unknown when this job was first accepted, so the
+            // active jobs count for the user/bank associated with this job
+            // must be incremented
+            ub->cur_active_jobs++;
 
-            // update current job with user/bank information
+            // update this job with the current user/bank information
             if (flux_jobtap_job_aux_set (p,
                                          FLUX_JOBTAP_CURRENT_JOB,
                                          "mf_priority:bank_info",
-                                         &bank_it->second,
+                                         ub,
                                          NULL) < 0)
                 flux_log_error (h, "flux_jobtap_job_aux_set");
 
