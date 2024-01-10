@@ -1027,20 +1027,24 @@ static int depend_cb (flux_plugin_t *p,
 }
 
 
+/*
+ * Increment the current running jobs count of the user/bank that this job is
+ * submitted under.
+ */
 static int run_cb (flux_plugin_t *p,
                    const char *topic,
                    flux_plugin_arg_t *args,
                    void *data)
 {
     int userid;
-    user_bank_info *b;
+    user_bank_info *user_bank;
 
-    b = static_cast<user_bank_info *>
+    user_bank = static_cast<user_bank_info *>
         (flux_jobtap_job_aux_get (p,
                                   FLUX_JOBTAP_CURRENT_JOB,
                                   "mf_priority:bank_info"));
 
-    if (b == NULL) {
+    if (user_bank == NULL) {
         flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB, "mf_priority",
                                      0, "job.state.run: bank info is " \
                                      "missing");
@@ -1049,7 +1053,7 @@ static int run_cb (flux_plugin_t *p,
     }
 
     // increment the user's current running jobs count
-    b->cur_run_jobs++;
+    user_bank->cur_run_jobs++;
 
     return 0;
 }
