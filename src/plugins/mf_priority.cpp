@@ -967,6 +967,12 @@ static int new_cb (flux_plugin_t *p,
 }
 
 
+/*
+ * Check the user/bank's running jobs count; if the user/bank is already at
+ * their limit, add a dependency on the job which will prevent it from running
+ * until a currently running job also under this user/bank has finished and
+ * cleaned up.
+ */
 static int depend_cb (flux_plugin_t *p,
                       const char *topic,
                       flux_plugin_arg_t *args,
@@ -974,7 +980,7 @@ static int depend_cb (flux_plugin_t *p,
 {
     int userid;
     long int id;
-    user_bank_info *b;
+    user_bank_info *user_bank;
 
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
@@ -988,12 +994,12 @@ static int depend_cb (flux_plugin_t *p,
         return -1;
     }
 
-    b = static_cast<user_bank_info *> (flux_jobtap_job_aux_get (
+    user_bank = static_cast<user_bank_info *> (flux_jobtap_job_aux_get (
                                                     p,
                                                     FLUX_JOBTAP_CURRENT_JOB,
                                                     "mf_priority:bank_info"));
 
-    if (b == NULL) {
+    if (user_bank == NULL) {
         flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB, "mf_priority",
                                      0, "job.state.depend: bank info is " \
                                      "missing");
@@ -1001,9 +1007,10 @@ static int depend_cb (flux_plugin_t *p,
         return -1;
     }
 
-    // if user has already hit their max running jobs count, add a job
-    // dependency to hold job until an already running job has finished
-    if ((b->max_run_jobs > 0) && (b->cur_run_jobs == b->max_run_jobs)) {
+    if ((user_bank->max_run_jobs > 0) &&
+            (user_bank->cur_run_jobs == user_bank->max_run_jobs)) {
+        // the user/bank is already at their max running jobs count; add a
+        // dependency to hold job until an already running job has finished
         if (flux_jobtap_dependency_add (p,
                                         id,
                                         "max-running-jobs-user-limit") < 0) {
@@ -1013,7 +1020,7 @@ static int depend_cb (flux_plugin_t *p,
 
             return -1;
         }
-        b->held_jobs.push_back (id);
+        user_bank->held_jobs.push_back (id);
     }
 
     return 0;
