@@ -869,6 +869,15 @@ static int validate_cb (flux_plugin_t *p,
 }
 
 
+/*
+ * Create a user_bank_info object to be associated with the job submitted under
+ * a user/bank. This object contains things like active and running jobs
+ * limits, the user/bank's fair share value, and associated priorities with a
+ * passed-in queue.
+ *
+ * If a user/bank is submitting a job under their default bank, update the
+ * jobspec for this job to contain the bank name as well.
+ */
 static int new_cb (flux_plugin_t *p,
                         const char *topic,
                         flux_plugin_arg_t *args,
@@ -878,11 +887,7 @@ static int new_cb (flux_plugin_t *p,
     char *bank = NULL;
     char *queue = NULL;
     int max_run_jobs, cur_active_jobs, max_active_jobs = 0;
-    double fairshare = 0.0;
-    user_bank_info *b;
-
-    std::map<int, std::map<std::string, user_bank_info>>::iterator it;
-    std::map<std::string, user_bank_info>::iterator bank_it;
+    user_bank_info *user_bank;
 
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
@@ -894,77 +899,50 @@ static int new_cb (flux_plugin_t *p,
         return flux_jobtap_reject_job (p, args, "unable to unpack bank arg");
     }
 
-    b = static_cast<user_bank_info *> (flux_jobtap_job_aux_get (
+    user_bank = static_cast<user_bank_info *> (flux_jobtap_job_aux_get (
                                                     p,
                                                     FLUX_JOBTAP_CURRENT_JOB,
                                                     "mf_priority:bank_info"));
 
-    if (b != NULL) {
-        max_run_jobs = b->max_run_jobs;
-        fairshare = b->fairshare;
-        cur_active_jobs = b->cur_active_jobs;
-        max_active_jobs = b->max_active_jobs;
-    } else {
-        // make sure user belongs to flux-accounting DB
-        it = users.find (userid);
-        if (it == users.end ()) {
-            // user does not exist in internal map yet, so create a bank_info
-            // struct that signifies it's going to be held in PRIORITY
+    if (user_bank == NULL) {
+        // bank_info was not unpacked; look up user in internal map
+        user_bank = get_user_info (userid, bank);
+
+        if (user_bank == NULL) {
+            // user/bank could not be found in internal map, so create a
+            // special user_bank_info object that will hold the job in PRIORITY
             add_missing_bank_info (p, h, userid);
             return 0;
         }
 
-        // make sure user belongs to bank they specified; if no bank was passed
-        // in, look up their default bank
-        if (bank != NULL) {
-            bank_it = it->second.find (std::string (bank));
-            if (bank_it == it->second.end ()) {
-                flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
-                                             "mf_priority", 0,
-                                             "job.new: not a member of %s",
-                                             bank);
-                return -1;
-            }
-        } else {
-            bank = const_cast<char*> (users_def_bank[userid].c_str ());
-            bank_it = it->second.find (std::string (bank));
-            if (bank_it == it->second.end ()) {
-                flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
-                                             "mf_priority", 0,
-                                             "job.new: user/default bank "
-                                             "entry does not exist");
-                return -1;
-            }
-            // update jobspec with default bank
+        if (bank == NULL) {
+            // this job is meant to run under the user's default bank;
+            // as a result, update the jobspec with their default bank name
             if (update_jobspec_bank (p, userid) < 0) {
                 flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
-                                            "mf_priority", 0,
-                                            "failed to update jobspec "
-                                            "with bank name");
+                                             "mf_priority", 0,
+                                             "failed to update jobspec "
+                                             "with bank name");
                 return -1;
             }
         }
-
-        max_run_jobs = bank_it->second.max_run_jobs;
-        fairshare = bank_it->second.fairshare;
-        cur_active_jobs = bank_it->second.cur_active_jobs;
-        max_active_jobs = bank_it->second.max_active_jobs;
-
-        b = &bank_it->second;
     }
 
-    // assign priority associated with validated queue to bank_info struct
-    // associated with job
-    b->queue_factor = get_queue_info (queue, b->queues);
+    // assign priority associated with validated queue
+    user_bank->queue_factor = get_queue_info (queue, user_bank->queues);
 
-    // if a user/bank has reached their max_active_jobs limit, subsequently
-    // submitted jobs will be rejected
+    max_run_jobs = user_bank->max_run_jobs;
+    cur_active_jobs = user_bank->cur_active_jobs;
+    max_active_jobs = user_bank->max_active_jobs;
+
     if (max_active_jobs > 0 && cur_active_jobs >= max_active_jobs)
+        // the user/bank is already at their max_active_jobs limit;
+        // reject the job
         return flux_jobtap_reject_job (p, args, "user has max active jobs");
 
-    // special case where the user/bank bank_info struct is set to NULL; used
-    // for testing the "if (b == NULL)" checks
     if (max_run_jobs == -1) {
+        // special case where the object passed between callbacks is set to
+        // NULL; this is used for testing the "if (b == NULL)" checks
         if (flux_jobtap_job_aux_set (p,
                                      FLUX_JOBTAP_CURRENT_JOB,
                                      "mf_priority:bank_info",
@@ -975,15 +953,15 @@ static int new_cb (flux_plugin_t *p,
         return 0;
     }
 
-
     if (flux_jobtap_job_aux_set (p,
                                  FLUX_JOBTAP_CURRENT_JOB,
                                  "mf_priority:bank_info",
-                                 b,
+                                 user_bank,
                                  NULL) < 0)
         flux_log_error (h, "flux_jobtap_job_aux_set");
 
-    b->cur_active_jobs++;
+    // increment the user/bank's active jobs count
+    user_bank->cur_active_jobs++;
 
     return 0;
 }
