@@ -39,6 +39,16 @@ std::string user_bank_info::to_json () const {
     json_object_set_new (root, "queue_factor", json_integer (queue_factor));
     json_object_set_new (root, "active", json_integer (active));
 
+    json_t *projects_array = json_array ();
+    for (const auto &project : projects) {
+        json_array_append_new (projects_array, json_string (project.c_str ()));
+    }
+    json_object_set_new (root, "projects", projects_array);
+
+    json_object_set_new (root,
+                         "default_project",
+                         json_string (def_project.c_str ()));
+
     char *json_str = json_dumps(root, JSON_INDENT (4));
     std::string result (json_str);
     free (json_str);

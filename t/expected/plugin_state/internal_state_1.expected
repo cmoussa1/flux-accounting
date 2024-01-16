@@ -14,7 +14,11 @@
           ""
         ],
         "queue_factor": 0,
-        "active": 1
+        "active": 1,
+        "projects": [
+          "*"
+        ],
+        "default_project": "*"
       },
       {
         "bank_name": "account2",
@@ -28,7 +32,11 @@
           ""
         ],
         "queue_factor": 0,
-        "active": 1
+        "active": 1,
+        "projects": [
+          "*"
+        ],
+        "default_project": "*"
       }
     ]
   }
