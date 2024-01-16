@@ -202,6 +202,22 @@ static int update_jobspec_bank (flux_plugin_t *p, int userid)
 
 
 /*
+ * Update the jobspec with the project the association used to
+ * submit their job under.
+ */
+static int update_jobspec_project (flux_plugin_t *p, std::string project)
+{
+    if (flux_jobtap_jobspec_update_pack (p,
+                                         "{s:s}",
+                                         "attributes.system.project",
+                                         project.c_str ()) < 0)
+            return -1;
+
+    return 0;
+}
+
+
+/*
  * A helper function to add special temporary values to a user/bank's job in
  * the case where their accounting information cannot be found in the plugin's
  * internal map AND when the plugin does not have any accounting information
