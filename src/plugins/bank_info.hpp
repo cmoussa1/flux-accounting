@@ -25,6 +25,11 @@ extern "C" {
 #include <string>
 #include <map>
 #include <iterator>
+#include <algorithm>
+
+// a project was specified for a submitted job that flux-accounting does not
+// know about or that the user/bank does not have permission to run jobs under
+#define INVALID_PROJECT -6
 
 // all attributes are per-user/bank
 class user_bank_info {
@@ -50,6 +55,7 @@ public:
 // these data structures are defined in the priority plugin
 extern std::map<int, std::map<std::string, user_bank_info>> users;
 extern std::map<int, std::string> users_def_bank;
+extern std::vector<std::string> projects;
 
 // get a user_bank_info object that points to user/bank
 // information in users map; return NULL on failure
@@ -62,5 +68,9 @@ bool check_map_for_dne_only ();
 
 // iterate through the users map and construct a JSON object of each user/bank
 json_t* map_to_json ();
+
+// validate a specified project by checking if it exists in a user/bank's list
+// of accessible projects
+int validate_project (char *project, std::vector<std::string> user_projects);
 
 #endif // BANK_INFO_H

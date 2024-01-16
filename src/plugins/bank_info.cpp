@@ -110,3 +110,25 @@ json_t* map_to_json ()
 
     return users_map;
 }
+
+
+int validate_project (char *project, std::vector<std::string> user_projects)
+{
+    std::vector<std::string>::iterator vect_it;
+
+    vect_it = std::find (projects.begin (), projects.end (), project);
+
+    if (vect_it == projects.end ())
+        // the project does not exist
+        return INVALID_PROJECT;
+
+    vect_it = std::find (user_projects.begin (),
+                         user_projects.end (),
+                         project);
+
+    if (vect_it == user_projects.end ())
+        // the project is not valid for this user/bank
+        return INVALID_PROJECT;
+
+    return 0;
+}

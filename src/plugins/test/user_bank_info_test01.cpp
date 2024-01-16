@@ -29,6 +29,7 @@ extern "C" {
 // define a test users map to run tests on
 std::map<int, std::map<std::string, user_bank_info>> users;
 std::map<int, std::string> users_def_bank;
+std::vector<std::string> projects;
 
 
 /*
