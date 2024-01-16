@@ -51,7 +51,9 @@ void add_user_to_map (
         user_bank.held_jobs,
         user_bank.queues,
         user_bank.queue_factor,
-        user_bank.active
+        user_bank.active,
+        user_bank.projects,
+        user_bank.def_project
     };
 }
 
@@ -73,8 +75,8 @@ void add_user_to_def_bank_map (std::map<int, std::string> &users_def_bank,
 void initialize_map (
     std::map<int, std::map<std::string, user_bank_info>> &users)
 {
-    user_bank_info user1 = {"bank_A", 0.5, 5, 0, 7, 0, {}, {}, 0, 1};
-    user_bank_info user2 = {"bank_A", 0.5, 5, 0, 7, 0, {}, {}, 0, 1};
+    user_bank_info user1 = {"bank_A", 0.5, 5, 0, 7, 0, {}, {}, 0, 1, {"*"}, {"*"}};
+    user_bank_info user2 = {"bank_A", 0.5, 5, 0, 7, 0, {}, {}, 0, 1, {"*"}, {"*"}};
 
     add_user_to_map (users, 1001, "bank_A", user1);
     add_user_to_def_bank_map (users_def_bank, 1001, "bank_A");
