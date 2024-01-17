@@ -159,19 +159,6 @@ static int get_queue_info (char *queue,
 }
 
 
-static void split_str_push_back (char *list, std::vector<std::string> *vec)
-{
-    std::stringstream s_stream;
-    s_stream << list; // create string stream from list
-
-    while (s_stream.good ()) {
-        std::string substr;
-        getline (s_stream, substr, ','); // get string delimited by comma
-        vec->push_back (substr);
-    }
-}
-
-
 /*
  * Update the jobspec with the default bank the association used to
  * submit their job under.
@@ -280,12 +267,12 @@ static void rec_update_cb(flux_t *h,
 {
     char *bank, *def_bank, *queues = NULL;
     int uid, max_running_jobs, max_active_jobs = 0;
+    int active = 1;
     double fshare = 0.0;
+
     json_t *data, *jtemp = NULL;
     json_error_t error;
     int num_data = 0;
-    int active = 1;
-    std::stringstream s_stream;
 
     if (flux_request_unpack (msg, NULL, "{s:o}", "data", &data) < 0) {
         flux_log_error (h, "failed to unpack custom_priority.trigger msg");
@@ -316,20 +303,20 @@ static void rec_update_cb(flux_t *h,
                             "active", &active) < 0)
             flux_log (h, LOG_ERR, "mf_priority unpack: %s", error.text);
 
-        user_bank_info *b;
-        b = &users[uid][bank];
+        // convert char* to C++ strings (if nullptr, just assign empty str)
+        std::string bank_str = bank ? bank : "";
+        std::string def_bank_str = def_bank ? def_bank : "";
+        std::string queues_str = queues ? queues : "";
 
-        b->bank_name = bank;
-        b->fairshare = fshare;
-        b->max_run_jobs = max_running_jobs;
-        b->max_active_jobs = max_active_jobs;
-        b->active = active;
-
-        // split queues comma-delimited string and add it to b->queues vector
-        b->queues.clear ();
-        split_str_push_back (queues, &b->queues);
-
-        users_def_bank[uid] = def_bank;
+        // insert user/bank into users map
+        insert_user (uid,
+                     bank_str,
+                     def_bank_str,
+                     fshare,
+                     max_running_jobs,
+                     max_active_jobs,
+                     queues_str,
+                     active);
     }
 
     return;

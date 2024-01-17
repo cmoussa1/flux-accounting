@@ -110,3 +110,41 @@ json_t* map_to_json ()
 
     return users_map;
 }
+
+
+void split_str_push_back (const std::string& list,
+                          std::vector<std::string> *vec)
+{
+    // create string stream from list
+    std::stringstream s_stream (list);
+
+    while (s_stream.good ()) {
+        std::string substr;
+        getline (s_stream, substr, ','); // get string delimited by comma
+        if (!substr.empty ())
+            vec->push_back (substr);
+    }
+}
+
+
+void insert_user (int uid,
+                  const std::string& bank,
+                  const std::string& def_bank,
+                  double fshare,
+                  int max_running_jobs,
+                  int max_active_jobs,
+                  const std::string& queues,
+                  int active)
+{
+    user_bank_info* b = &users[uid][bank];
+
+    b->bank_name = bank;
+    b->fairshare = fshare;
+    b->max_run_jobs = max_running_jobs;
+    b->max_active_jobs = max_active_jobs;
+    b->active = active;
+    b->queues.clear();
+    split_str_push_back (queues.c_str (), &b->queues);
+
+    users_def_bank[uid] = def_bank;
+}

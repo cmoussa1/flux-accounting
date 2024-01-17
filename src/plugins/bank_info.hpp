@@ -25,6 +25,8 @@ extern "C" {
 #include <string>
 #include <map>
 #include <iterator>
+#include <algorithm>
+#include <sstream>
 
 // all attributes are per-user/bank
 class user_bank_info {
@@ -60,5 +62,18 @@ bool check_map_for_dne_only ();
 
 // iterate through the users map and construct a JSON object of each user/bank
 json_t* map_to_json ();
+
+// split a comma-delimited string and insert each string into a vector
+void split_str_push_back (char *list, std::vector<std::string> *vec);
+
+// insert a user/bank into the users map
+void insert_user (int uid,
+                  const std::string& bank,
+                  const std::string& def_bank,
+                  double fshare,
+                  int max_running_jobs,
+                  int max_active_jobs,
+                  const std::string& queues,
+                  int active);
 
 #endif // BANK_INFO_H
