@@ -26,6 +26,7 @@ extern "C" {
 #include <map>
 #include <iterator>
 #include <algorithm>
+#include <sstream>
 
 // a project was specified for a submitted job that flux-accounting does not
 // know about or that the user/bank does not have permission to run jobs under
@@ -72,5 +73,20 @@ json_t* map_to_json ();
 // validate a specified project by checking if it exists in a user/bank's list
 // of accessible projects
 int validate_project (char *project, std::vector<std::string> user_projects);
+
+// split a comma-delimited string and insert each string into a vector
+void split_str_push_back (char *list, std::vector<std::string> *vec);
+
+// insert a user/bank into the users map
+void insert_user (int uid,
+                  const std::string& bank,
+                  const std::string& def_bank,
+                  double fshare,
+                  int max_running_jobs,
+                  int max_active_jobs,
+                  const std::string& queues,
+                  int active,
+                  const std::string& projects,
+                  const std::string& def_project);
 
 #endif // BANK_INFO_H
