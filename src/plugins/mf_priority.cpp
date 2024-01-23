@@ -1067,11 +1067,10 @@ static int job_updated (flux_plugin_t *p,
                         flux_plugin_arg_t *args,
                         void *data)
 {
-    std::map<std::string, user_bank_info>::iterator bank_it;
     int userid;
     char *bank = NULL;
     char *queue = NULL;
-    user_bank_info *b;
+    user_bank_info *user_bank;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
@@ -1083,12 +1082,12 @@ static int job_updated (flux_plugin_t *p,
         return flux_jobtap_error (p, args, "unable to unpack plugin args");
 
     // grab bank_info struct for user/bank (if any)
-    b = static_cast<user_bank_info *> (flux_jobtap_job_aux_get (
+    user_bank = static_cast<user_bank_info *> (flux_jobtap_job_aux_get (
                                                     p,
                                                     FLUX_JOBTAP_CURRENT_JOB,
                                                     "mf_priority:bank_info"));
 
-    if (b == NULL) {
+    if (user_bank == NULL) {
         flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB, "mf_priority",
                                      0, "job.update: bank info is missing");
 
@@ -1096,33 +1095,25 @@ static int job_updated (flux_plugin_t *p,
     }
 
     // look up user/bank info based on unpacked information
-    bank_info_result lookup_result = get_bank_info (userid, bank);
+    user_bank = get_user_info (userid, bank, users, users_def_bank);
 
-    if (lookup_result.first == BANK_USER_NOT_FOUND) {
-        flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
-                                     "mf_priority", 0,
-                                     "job.update: cannot find info for user: ",
+    if (user_bank == NULL) {
+        flux_jobtap_raise_exception (p,
+                                     FLUX_JOBTAP_CURRENT_JOB,
+                                     "mf_priority",
+                                     0,
+                                     "job.update: cannot find user/bank or "
+                                     "user/default bank entry for: %i",
                                      userid);
-    } else if (lookup_result.first == BANK_INVALID) {
-        flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
-                                     "mf_priority", 0,
-                                     "job.update: not a member of %s",
-                                     bank);
-    } else if (lookup_result.first == BANK_NO_DEFAULT) {
-        flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
-                                     "mf_priority", 0,
-                                     "job.update: user/default bank "
-                                     "entry does not exist");
-    } else if (lookup_result.first == BANK_SUCCESS) {
-        bank_it = lookup_result.second;
+        
+        return -1;
     }
 
-    // if the queue for the job has been updated, fetch the priority of the
-    // validated queue and assign it to the associated bank_info struct
-    if (queue != NULL) {
-        int queue_factor = get_queue_info (queue, bank_it->second.queues);
-        b->queue_factor = queue_factor;
-    }
+    if (queue != NULL)
+        // the queue for the job has been updated, so fetch the priority of
+        // the validated queue and assign it to the user_bank_info object
+        // associated with the job
+        user_bank->queue_factor = get_queue_info (queue, user_bank->queues);
 
     return 0;
 }
@@ -1138,10 +1129,10 @@ static int update_queue_cb (flux_plugin_t *p,
                             flux_plugin_arg_t *args,
                             void *data)
 {
-    std::map<std::string, user_bank_info>::iterator bank_it;
     int userid;
     char *bank = NULL;
     char *queue = NULL;
+    user_bank_info *user_bank;
 
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
@@ -1153,34 +1144,24 @@ static int update_queue_cb (flux_plugin_t *p,
         return flux_jobtap_error (p, args, "unable to unpack plugin args");
 
     // look up user/bank info based on unpacked information
-    bank_info_result lookup_result = get_bank_info (userid, bank);
+    user_bank = get_user_info (userid, bank, users, users_def_bank);
 
-    if (lookup_result.first == BANK_USER_NOT_FOUND) {
-        return flux_jobtap_error (p,
-                                  args,
-                                  "mf_priority: cannot find info for user ",
-                                  userid);
-    } else if (lookup_result.first == BANK_INVALID) {
-        return flux_jobtap_error (p,
-                                  args,
-                                  "mf_priority: not a member of %s",
-                                  bank);
-    } else if (lookup_result.first == BANK_NO_DEFAULT) {
-        return flux_jobtap_error (p,
-                                  args,
-                                  "mf_priority: user/default bank entry does "
-                                  "not exist");
-    } else if (lookup_result.first == BANK_SUCCESS) {
-        bank_it = lookup_result.second;
-
-        // validate the updated queue and make sure the user/bank has
-        // access to it; if not, reject the update
-        if (get_queue_info (queue, bank_it->second.queues) == INVALID_QUEUE)
-            return flux_jobtap_error (p,
-                                      args,
-                                      "mf_priority: queue not valid for user: %s",
-                                      queue);
+    if (user_bank == NULL) {
+        return flux_jobtap_reject_job (p,
+                                       args,
+                                       "cannot find user/bank or "
+                                       "user/default bank entry "
+                                       "for: %i",
+                                       userid);
     }
+
+    // validate the updated queue and make sure the user/bank has access to it;
+    if (get_queue_info (queue, user_bank->queues) == INVALID_QUEUE)
+        // user/bank does not have access to this queue; reject the update
+        return flux_jobtap_error (p,
+                                  args,
+                                  "mf_priority: queue not valid for user: %s",
+                                  queue);
 
     return 0;
 }
