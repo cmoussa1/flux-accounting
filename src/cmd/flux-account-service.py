@@ -30,7 +30,7 @@ def establish_sqlite_connection(path):
     # try to open database file; will exit with -1 if database file not found
     if not os.path.isfile(path):
         print(f"Database file does not exist: {path}", file=sys.stderr)
-        sys.exit(1)
+        return -1
 
     db_uri = "file:" + path + "?mode=rw"
     try:
@@ -40,7 +40,7 @@ def establish_sqlite_connection(path):
     except sqlite3.OperationalError as exc:
         print(f"Unable to open database file: {db_uri}", file=sys.stderr)
         print(f"Exception: {exc}")
-        sys.exit(1)
+        return -1
 
     return conn
 
@@ -321,8 +321,15 @@ class AccountingService:
     # pylint: disable=no-self-use
     def view_job_records(self, handle, watcher, msg, arg):
         try:
+            if msg.payload["path"] is None:
+                db_path = fluxacct.accounting.db_dir + "job-archive"
+            else:
+                db_path = msg.payload["path"]
+
             # connect to job-archive DB
-            jobs_conn = establish_sqlite_connection(msg.payload["path"])
+            jobs_conn = establish_sqlite_connection(db_path)
+            if jobs_conn == -1:
+                raise Exception(f"could not connect to job-archive DB: {db_path}")
 
             val = jobs.output_job_records(
                 jobs_conn,

@@ -81,6 +81,11 @@ test_expect_success 'submit some sleep 1 jobs under one user' '
 	wait_db $jobid3 ${ARCHIVEDB}
 '
 
+test_expect_success 'view-job-records fails gracefully when no DB is found' '
+	test_must_fail flux account view-job-records --user $username > no_db_found.out 2>&1 &&
+	grep "could not connect to job-archive DB" no_db_found.out
+'
+
 test_expect_success 'view job records for a user' '
 	flux account -p ${ARCHIVEDB} view-job-records --user $username
 '
