@@ -35,3 +35,30 @@ Association* get_association (int userid,
 
     return &bank_it->second;
 }
+
+
+int get_queue_info (char *queue,
+                    std::vector<std::string> permissible_queues,
+                    std::map<std::string, Queue> queues)
+{
+    if (queue == NULL)
+        // no queue was specified; just use the default queue factor
+        return NO_QUEUE_SPECIFIED;
+
+    // check #1) the queue passed in exists; if the queue cannot be found,
+    // this means that flux-accounting does not know about the queue, and
+    // thus should return a default queue factor
+    auto q_it = queues.find (queue);
+    if (q_it == queues.end ())
+        return UNKNOWN_QUEUE;
+
+    // check #2) the queue is a valid one for the user to submit jobs under
+    auto vect_it = std::find (permissible_queues.begin (),
+                              permissible_queues.end (),
+                              queue);
+    if (vect_it == permissible_queues.end ())
+        return INVALID_QUEUE;
+
+    // return the priority factor associated with validated queue
+    return queues[queue].priority;
+}
