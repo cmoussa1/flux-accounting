@@ -133,23 +133,6 @@ static void split_string (char *queues, Association *b)
 }
 
 
-int check_queue_factor (flux_plugin_t *p,
-                        int queue_factor,
-                        char *queue,
-                        char *prefix = (char *) "")
-{
-    if (queue_factor == INVALID_QUEUE) {
-        flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
-                                     "mf_priority", 0,
-                                     "%sQueue not valid for user: %s",
-                                     prefix, queue);
-        return -1;
-    }
-
-    return 0;
-}
-
-
 /*
  * Add held job IDs to a JSON array to be added to a bank_info JSON object.
  */
@@ -640,10 +623,17 @@ static int priority_cb (flux_plugin_t *p,
                                                         queue,
                                                         bank_it->second.queues,
                                                         queues);
-            if (check_queue_factor (p,
-                                    bank_it->second.queue_factor,
-                                    queue) < 0)
+            if (bank_it->second.queue_factor == INVALID_QUEUE) {
+                // the queue specified is invalid for the association to run
+                // jobs under; raise a job exception
+                flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
+                                             "mf_priority", 0,
+                                             "mf_priority: queue not valid "
+                                             "for user: %s",
+                                             queue);
+
                 return -1;
+            }
 
             // if we get here, the bank was unknown when this job was first
             // accepted, and therefore the active job counts for this
