@@ -8,6 +8,7 @@ DB_PATH=$(pwd)/FluxAccountingTest.db
 ARCHIVEDIR=`pwd`
 ARCHIVEDB="${ARCHIVEDIR}/jobarchive.db"
 QUERYCMD="flux python ${SHARNESS_TEST_SRCDIR}/scripts/query.py"
+NO_JOBS=${SHARNESS_TEST_SRCDIR}/expected/job_usage/no_jobs.expected
 
 export FLUX_CONF_DIR=$(pwd)
 test_under_flux 4 job
@@ -70,6 +71,29 @@ EOF
 
 test_expect_success 'load job-archive module' '
 	flux module load job-archive
+'
+
+test_expect_success 'submit a job that does not run' '
+	job=$(flux submit --urgency=0 sleep 60) &&
+	flux job wait-event -vt 10 $job priority &&
+	flux cancel $job &&
+	wait_db $job ${ARCHIVEDB}
+'
+
+test_expect_success 'run scripts to update job usage and fair-share' '
+	flux account update-usage ${ARCHIVEDB} &&
+	flux account-update-fshare -p ${DB_PATH}
+'
+
+test_expect_success 'check that usage does not get affected by canceled jobs' '
+	flux account view-user --json $username > user.json &&
+	test_debug "jq -S . <user.json" &&
+	jq -e ".banks[0].job_usage == 0.0" <user.json
+'
+
+test_expect_success 'check that no jobs show up under user' '
+	flux account -p ${ARCHIVEDB} view-job-records --user $username > no_jobs.test &&
+	test_cmp ${NO_JOBS} no_jobs.test
 '
 
 test_expect_success 'submit some sleep 1 jobs under one user' '

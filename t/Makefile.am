@@ -101,6 +101,7 @@ EXTRA_DIST= \
 	expected/job_usage/pre_update.expected \
 	expected/job_usage/post_update1.expected \
 	expected/job_usage/post_update2.expected \
+	expected/job_usage/no_jobs.expected \
 	expected/plugin_state/internal_state_1.expected \
 	expected/plugin_state/internal_state_3.expected \
 	expected/plugin_state/internal_state_3.expected \

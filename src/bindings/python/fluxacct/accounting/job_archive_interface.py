@@ -123,7 +123,13 @@ def add_job_records(rows):
     job_records = []
 
     for row in rows:
-        rset = ResourceSet(row[6])  # fetch R
+        if row[6] != "":
+            rset = ResourceSet(row[6])  # fetch R
+        else:
+            # this job never ran, and thus does not have a valid R;
+            # therefore, we shouldn't add this job as part of calculating
+            # an association's job usage value
+            continue
 
         job_record = JobRecord(
             row[0],  # userid
