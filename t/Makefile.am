@@ -43,7 +43,8 @@ TESTSCRIPTS = \
 	python/t1003_bank_cmds.py \
 	python/t1004_queue_cmds.py \
 	python/t1005_project_cmds.py \
-	python/t1006_job_archive.py
+	python/t1006_job_archive.py \
+	python/t1007_view_jobs.py
 
 dist_check_SCRIPTS = \
 	$(TESTSCRIPTS) \

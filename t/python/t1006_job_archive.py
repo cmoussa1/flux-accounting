@@ -142,83 +142,16 @@ class TestAccountingCLI(unittest.TestCase):
         populate_job_archive_db(acct_conn, 1004, "D", "0-3", "fluke[0-3]", 4)
         populate_job_archive_db(acct_conn, 1004, "D", "0", "fluke[0]", 4)
 
-    # passing a valid jobid should return
-    # its job information
-    def test_01_with_jobid_valid(self):
-        my_dict = {"jobid": 102}
-        job_records = jobs.output_job_records(acct_conn, op, **my_dict)
-        print(job_records)
-        self.assertEqual(len(job_records), 2)
-
-    # passing a bad jobid should return no records
-    def test_02_with_jobid_failure(self):
-        my_dict = {"jobid": 000}
-        job_records = jobs.output_job_records(acct_conn, op, **my_dict)
-        self.assertEqual(len(job_records), 1)
-
-    # passing a timestamp before the first job to
-    # start should return all of the jobs
-    def test_03_after_start_time_all(self):
-        my_dict = {"after_start_time": 0}
-        job_records = jobs.output_job_records(acct_conn, op, **my_dict)
-        self.assertEqual(len(job_records), 19)
-
-    # passing a timestamp after all of the start time
-    # of all the completed jobs should return a failure message
-    @mock.patch("time.time", mock.MagicMock(return_value=11000000))
-    def test_04_after_start_time_none(self):
-        my_dict = {"after_start_time": time.time()}
-        job_records = jobs.output_job_records(acct_conn, op, **my_dict)
-        self.assertEqual(len(job_records), 1)
-
-    # passing a timestamp before the end time of the
-    # last job should return all of the jobs
-    @mock.patch("time.time", mock.MagicMock(return_value=11000000))
-    def test_05_before_end_time_all(self):
-        my_dict = {"before_end_time": time.time()}
-        job_records = jobs.output_job_records(acct_conn, op, **my_dict)
-        self.assertEqual(len(job_records), 19)
-
-    # passing a timestamp before the end time of
-    # the first completed jobs should return no jobs
-    def test_06_before_end_time_none(self):
-        my_dict = {"before_end_time": 0}
-        job_records = jobs.output_job_records(acct_conn, op, **my_dict)
-        self.assertEqual(len(job_records), 1)
-
-    # passing a user not in the jobs table
-    # should return no jobs
-    def test_07_by_user_failure(self):
-        my_dict = {"user": "9999"}
-        job_records = jobs.output_job_records(acct_conn, op, **my_dict)
-        self.assertEqual(len(job_records), 1)
-
-    # view_jobs_run_by_username() interacts with a
-    # passwd file; for the purpose of these tests,
-    # just pass the userid
-    def test_08_by_user_success(self):
-        my_dict = {"user": "1001"}
-        job_records = jobs.output_job_records(acct_conn, op, **my_dict)
-        self.assertEqual(len(job_records), 3)
-
-    # passing a combination of params should further
-    # refine the query
-    @mock.patch("time.time", mock.MagicMock(return_value=9000500))
-    def test_09_multiple_params(self):
-        my_dict = {"user": "1001", "after_start_time": time.time()}
-        job_records = jobs.output_job_records(acct_conn, op, **my_dict)
-        self.assertEqual(len(job_records), 2)
-
     # passing no parameters will result in a generic query
     # returning all results
-    def test_10_no_options_passed(self):
+    def test_01_no_options_passed(self):
         my_dict = {}
         job_records = jobs.output_job_records(acct_conn, op, **my_dict)
         self.assertEqual(len(job_records), 19)
 
     # users that have run a lot of jobs should have a larger usage factor
     @mock.patch("time.time", mock.MagicMock(return_value=9900000))
-    def test_11_calc_usage_factor_many_jobs(self):
+    def test_02_calc_usage_factor_many_jobs(self):
         user = "1002"
         bank = "C"
         update_stmt = "UPDATE job_usage_factor_table SET usage_factor_period_0=256 WHERE username='1002' AND bank='C'"
@@ -243,7 +176,7 @@ class TestAccountingCLI(unittest.TestCase):
     # on the contrary, users that have not run a lot of jobs should have
     # a smaller usage factor
     @mock.patch("time.time", mock.MagicMock(return_value=9900000))
-    def test_12_calc_usage_factor_few_jobs(self):
+    def test_03_calc_usage_factor_few_jobs(self):
         user = "1001"
         bank = "C"
         update_stmt = "UPDATE job_usage_factor_table SET usage_factor_period_0=4096 WHERE username='1001' AND bank='C'"
@@ -266,7 +199,7 @@ class TestAccountingCLI(unittest.TestCase):
         self.assertEqual(usage_factor, 8500.0)
 
     # make sure update_t_inactive() updates the last seen job timestamp
-    def test_13_update_t_inactive_success(self):
+    def test_04_update_t_inactive_success(self):
         s_ts = "SELECT last_job_timestamp FROM job_usage_factor_table WHERE username='1003' AND bank='D'"
         cur.execute(s_ts)
         ts_old = float(cur.fetchone()[0])
@@ -288,7 +221,7 @@ class TestAccountingCLI(unittest.TestCase):
 
     # make sure current usage factor was written to job_usage_factor_table, but
     # historical usage factor was written to association_table
-    def test_14_check_usage_factor_in_tables(self):
+    def test_05_check_usage_factor_in_tables(self):
         select_stmt = "SELECT usage_factor_period_0 FROM job_usage_factor_table WHERE username='1002' AND bank='C'"
         cur.execute(select_stmt)
         usage_factor = cur.fetchone()[0]
@@ -304,7 +237,7 @@ class TestAccountingCLI(unittest.TestCase):
     # re-calculating a job usage factor after the end of the last half-life
     # period should create a new usage bin
     @mock.patch("time.time", mock.MagicMock(return_value=(100000000 + (604800 * 2.1))))
-    def test_15_append_jobs_in_diff_half_life_period(self):
+    def test_06_append_jobs_in_diff_half_life_period(self):
         user = "1001"
         bank = "C"
 
@@ -353,7 +286,7 @@ class TestAccountingCLI(unittest.TestCase):
     # simulate a half-life period further; re-calculate
     # usage for user1001 to make sure its value goes down
     @mock.patch("time.time", mock.MagicMock(return_value=(10000000 + (604800 * 2.1))))
-    def test_16_recalculate_usage_after_half_life_period(self):
+    def test_07_recalculate_usage_after_half_life_period(self):
         user = "1001"
         bank = "C"
 
@@ -370,7 +303,7 @@ class TestAccountingCLI(unittest.TestCase):
     # simulate a half-life period further; assure the new end of the
     # current half-life period gets updated
     @mock.patch("time.time", mock.MagicMock(return_value=(10000000 + (604800 * 2.1))))
-    def test_17_update_end_half_life_period(self):
+    def test_08_update_end_half_life_period(self):
         # fetch timestamp of the end of the current half-life period
         s_end_hl = """
             SELECT end_half_life_period
@@ -389,7 +322,7 @@ class TestAccountingCLI(unittest.TestCase):
 
     # removing a user from the flux-accounting DB should NOT remove their job
     # usage history from the job_usage_factor_table
-    def test_18_keep_job_usage_records_upon_delete(self):
+    def test_09_keep_job_usage_records_upon_delete(self):
         u.delete_user(acct_conn, username="1001", bank="C")
 
         select_stmt = """
@@ -406,7 +339,7 @@ class TestAccountingCLI(unittest.TestCase):
     # calling update_job_usage in the next half-life period should update usage
     # factors for users
     @mock.patch("time.time", mock.MagicMock(return_value=(10000000 + (604800 * 2.1))))
-    def test_20_update_job_usage_next_half_life_period(self):
+    def test_10_update_job_usage_next_half_life_period(self):
         s_stmt = """
             SELECT job_usage FROM association_table
             WHERE username='1002' AND bank='C'
