@@ -42,7 +42,7 @@ def filter_jobs_by_bank(job_records, bank, is_default_bank=False):
     return jobs
 
 
-def get_job_records(conn, bank, default_bank, **kwargs):
+def filter_jobs_by_user(conn, bank, default_bank, **kwargs):
     result = j.get_jobs(conn, **kwargs)
 
     if not result:
@@ -209,7 +209,7 @@ def calc_usage_factor(conn, pdhl, user, bank, default_bank):
 
     # get jobs that have completed since the last seen completed job
     last_j_ts = get_last_job_ts(conn, user, bank)
-    user_jobs = get_job_records(
+    user_jobs = filter_jobs_by_user(
         conn,
         bank,
         default_bank,
