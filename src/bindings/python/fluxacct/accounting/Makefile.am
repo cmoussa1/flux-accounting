@@ -5,7 +5,7 @@ acctpy_PYTHON = \
 	queue_subcommands.py \
 	project_subcommands.py \
 	job_archive_subcommands.py \
-	job_archive_interface.py \
+	job_usage_calculation.py \
 	create_db.py
 
 clean-local:
