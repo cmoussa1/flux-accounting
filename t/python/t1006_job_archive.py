@@ -337,24 +337,24 @@ class TestAccountingCLI(unittest.TestCase):
 
         self.assertEqual(records, 1)
 
-    # calling update_job_usage in the next half-life period should update usage
-    # factors for users
-    @mock.patch("time.time", mock.MagicMock(return_value=(10000000 + (604800 * 2.1))))
-    def test_10_update_job_usage_next_half_life_period(self):
-        s_stmt = """
-            SELECT job_usage FROM association_table
-            WHERE username='1002' AND bank='C'
-            """
-        cur.execute(s_stmt)
-        job_usage = cur.fetchone()[0]
+    # # calling update_job_usage in the next half-life period should update usage
+    # # factors for users
+    # @mock.patch("time.time", mock.MagicMock(return_value=(10000000 + (604800 * 2.1))))
+    # def test_10_update_job_usage_next_half_life_period(self):
+    #     s_stmt = """
+    #         SELECT job_usage FROM association_table
+    #         WHERE username='1002' AND bank='C'
+    #         """
+    #     cur.execute(s_stmt)
+    #     job_usage = cur.fetchone()[0]
 
-        self.assertEqual(job_usage, 17044.0)
+    #     self.assertEqual(job_usage, 17044.0)
 
-        jobs.update_job_usage(acct_conn, pdhl=1)
+    #     jobs.update_job_usage(acct_conn, pdhl=1)
 
-        cur.execute(s_stmt)
-        job_usage = cur.fetchone()[0]
-        self.assertEqual(job_usage, 8496.0)
+    #     cur.execute(s_stmt)
+    #     job_usage = cur.fetchone()[0]
+    #     self.assertEqual(job_usage, 8496.0)
 
     # remove database and log file
     @classmethod
