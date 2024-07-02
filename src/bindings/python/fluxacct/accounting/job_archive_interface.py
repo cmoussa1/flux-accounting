@@ -48,10 +48,6 @@ def get_job_records(conn, bank, default_bank, **kwargs):
     if not result:
         return []
 
-    if bank is None and default_bank is None:
-        # special case for unit tests in test_job_archive_interface.py
-        return j.convert_to_obj(result)
-
     # find out if we are fetching jobs from a user's default bank or under
     # one of their secondary banks; this will determine how we filter the
     # job records we've found
