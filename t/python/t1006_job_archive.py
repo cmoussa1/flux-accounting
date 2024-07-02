@@ -18,6 +18,7 @@ import sys
 from unittest import mock
 
 from fluxacct.accounting import job_archive_interface as jobs
+from fluxacct.accounting import job_archive_subcommands as j
 from fluxacct.accounting import create_db as c
 from fluxacct.accounting import user_subcommands as u
 from fluxacct.accounting import bank_subcommands as b
@@ -146,7 +147,7 @@ class TestAccountingCLI(unittest.TestCase):
     # returning all results
     def test_01_no_options_passed(self):
         my_dict = {}
-        job_records = jobs.output_job_records(acct_conn, op, **my_dict)
+        job_records = j.view_jobs(acct_conn, op, **my_dict)
         self.assertEqual(len(job_records), 19)
 
     # users that have run a lot of jobs should have a larger usage factor
