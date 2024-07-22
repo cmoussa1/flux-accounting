@@ -176,6 +176,7 @@ class AccountingService:
                 msg.payload["max_nodes"],
                 msg.payload["queues"],
                 msg.payload["projects"],
+                msg.payload["max_cores"],
             )
 
             payload = {"add_user": val}
@@ -221,6 +222,7 @@ class AccountingService:
                 msg.payload["queues"],
                 msg.payload["projects"],
                 msg.payload["default_project"],
+                msg.payload["max_cores"],
             )
 
             payload = {"edit_user": val}

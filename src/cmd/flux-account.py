@@ -114,6 +114,12 @@ def add_add_user_arg(subparsers):
         default="*",
         metavar="PROJECTS",
     )
+    subparser_add_user.add_argument(
+        "--max-cores",
+        help="max number of cores a user can have across all of their running jobs",
+        default=2147483647,
+        metavar="MAX_CORES",
+    )
 
 
 def add_delete_user_arg(subparsers):
@@ -199,6 +205,12 @@ def add_edit_user_arg(subparsers):
         help="default projects the user submits jobs under when no project is specified",
         default=None,
         metavar="DEFAULT_PROJECT",
+    )
+    subparser_edit_user.add_argument(
+        "--max-cores",
+        help="max number of cores a user can have across all of their running jobs",
+        default=None,
+        metavar="MAX_CORES",
     )
 
 
@@ -561,6 +573,7 @@ def select_accounting_function(args, output_file, parser):
             "max_nodes": args.max_nodes,
             "queues": args.queues,
             "projects": args.projects,
+            "max_cores": args.max_cores,
         }
         return_val = flux.Flux().rpc("accounting.add_user", data).get()
     elif args.func == "delete_user":
@@ -584,6 +597,7 @@ def select_accounting_function(args, output_file, parser):
             "queues": args.queues,
             "projects": args.projects,
             "default_project": args.default_project,
+            "max_cores": args.max_cores,
         }
         return_val = flux.Flux().rpc("accounting.edit_user", data).get()
     elif args.func == "view_job_records":

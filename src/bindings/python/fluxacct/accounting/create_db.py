@@ -108,6 +108,7 @@ def create_db(
                 queues           tinytext    DEFAULT ''             NOT NULL    ON CONFLICT REPLACE DEFAULT '',
                 projects         tinytext    DEFAULT '*'            NOT NULL    ON CONFLICT REPLACE DEFAULT '*',
                 default_project  tinytext    DEFAULT '*'            NOT NULL    ON CONFLICT REPLACE DEFAULT '*',
+                max_cores        int(11)     DEFAULT 2147483647     NOT NULL    ON CONFLICT REPLACE DEFAULT 2147483647,
                 PRIMARY KEY   (username, bank)
         );"""
     )

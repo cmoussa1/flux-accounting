@@ -100,6 +100,7 @@ def create_json_object(conn, user):
         "queues",
         "projects",
         "default_project",
+        "max_cores",
     ]
 
     cur.execute(
@@ -113,7 +114,7 @@ def create_json_object(conn, user):
     cur.execute(
         """SELECT bank, active, shares, job_usage, fairshare,
         max_running_jobs, max_active_jobs, max_nodes,
-        queues, projects, default_project FROM association_table
+        queues, projects, default_project, max_cores FROM association_table
         WHERE username=?""",
         (user,),
     )
@@ -317,6 +318,7 @@ def add_user(
     max_nodes=2147483647,
     queues="",
     projects="*",
+    max_cores=2147483647,
 ):
     cur = conn.cursor()
 
@@ -371,8 +373,9 @@ def add_user(
             INSERT INTO association_table (creation_time, mod_time, username,
                                            userid, bank, default_bank, shares,
                                            max_running_jobs, max_active_jobs,
-                                           max_nodes, queues, projects, default_project)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                           max_nodes, queues, projects, default_project,
+                                           max_cores)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 int(time.time()),
@@ -388,6 +391,7 @@ def add_user(
                 queues,
                 projects,
                 default_project,
+                max_cores,
             ),
         )
         # commit changes
@@ -452,6 +456,7 @@ def edit_user(
     queues=None,
     projects=None,
     default_project=None,
+    max_cores=None,
 ):
     params = locals()
     editable_fields = [
@@ -466,6 +471,7 @@ def edit_user(
         "queues",
         "projects",
         "default_project",
+        "max_cores",
     ]
     for field in editable_fields:
         if params[field] is not None:
