@@ -19,7 +19,8 @@
         ],
         "def_project": "*",
         "max_nodes": 2147483647,
-        "active": 1
+        "active": 1,
+        "max_cores": 2147483647
       },
       {
         "bank_name": "account2",
@@ -38,7 +39,8 @@
         ],
         "def_project": "*",
         "max_nodes": 2147483647,
-        "active": 1
+        "active": 1,
+        "max_cores": 2147483647
       }
     ]
   },
@@ -64,7 +66,8 @@
         ],
         "def_project": "A",
         "max_nodes": 10,
-        "active": 1
+        "active": 1,
+        "max_cores": 2147483647
       }
     ]
   }
