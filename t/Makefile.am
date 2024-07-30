@@ -89,6 +89,7 @@ TESTSCRIPTS = \
 	t1084-issue849.t \
 	t1085-issue850.t \
 	t1086-view-job-records-dynamic-width.t \
+	t1044-elastic.t \
 	t5000-valgrind.t \
 	python/t1000-example.py \
 	python/t1001_db.py \
