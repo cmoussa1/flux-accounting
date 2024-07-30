@@ -16,6 +16,7 @@ import argparse
 import pwd
 import grp
 import time
+import datetime
 
 import flux
 import flux.job
@@ -62,7 +63,9 @@ def fetch_new_jobs(last_timestamp=time.time() - (30 * 60)):
     handle = flux.Flux()
 
     # construct and send RPC
-    rpc_handle = flux.job.job_list_inactive(handle, since=last_timestamp)
+    rpc_handle = flux.job.job_list_inactive(
+        handle, since=last_timestamp, max_entries=10000
+    )
     jobs = get_jobs(rpc_handle)
 
     for job in jobs:
@@ -109,14 +112,10 @@ def create_job_dicts(jobs):
                 "bank",
                 "queue",
                 "expiration",
-                "t_run",
-                "t_inactive",
-                "t_run",
                 "nodelists",
                 "nnodes",
                 "cwd",
                 "urgency",
-                "t_submit",
                 "success",
                 "result",
                 "queue",
@@ -134,6 +133,20 @@ def create_job_dicts(jobs):
         if rec.get("t_run") is not None and rec.get("t_inactive") is not None:
             # compute job duration
             rec["duration"] = rec["t_inactive"] - rec["t_run"]
+
+        # convert timestamps to ISO8601
+        if job.get("t_submit") is not None:
+            rec["t_submit"] = datetime.datetime.fromtimestamp(
+                job["t_submit"], tz=datetime.timezone.utc
+            ).isoformat()
+        if job.get("t_run") is not None:
+            rec["t_run"] = datetime.datetime.fromtimestamp(
+                job["t_run"], tz=datetime.timezone.utc
+            ).isoformat()
+        if job.get("t_inactive") is not None:
+            rec["t_inactive"] = datetime.datetime.fromtimestamp(
+                job["t_inactive"], tz=datetime.timezone.utc
+            ).isoformat()
 
         # TODO: compute number of processes * number of nodes
         # TODO: compute eligible time?
@@ -155,25 +168,32 @@ def write_to_file(job_records, output_file):
 def main():
     parser = argparse.ArgumentParser(
         description="""
-        Description: Fetch ianctive job records using Flux's job-list interface
-        and create custom JSON objects out of each one.
+        Description: Fetch inactive job records using Flux's job-list and
+        job-info interfaces and create custom NDJSON objects out of each one.
         """
     )
 
     parser.add_argument(
-        "output_file",
+        "--output-file",
         help="specify output file",
         metavar="OUTPUT_FILE",
+    )
+    parser.add_argument(
+        "--since",
+        help="fetch all jobs since a certain time (formatted in seconds since epoch)",
+        metavar="TIMESTAMP",
     )
     args = parser.parse_args()
 
     jobs = fetch_new_jobs()
     job_records = create_job_dicts(jobs)
 
-    for record in job_records:
-        print(record)
-
-    write_to_file(job_records, args.output_file)
+    if args.output_file is not None:
+        print(f"writing to file: {args.output_file}")
+        write_to_file(job_records, args.output_file)
+    else:
+        for job in job_records:
+            print(job)
 
 
 if __name__ == "__main__":
