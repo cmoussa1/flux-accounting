@@ -186,7 +186,7 @@ def main():
     )
     args = parser.parse_args()
 
-    jobs = fetch_new_jobs(args.since)
+    jobs = fetch_new_jobs(args.since) if args.since is not None else fetch_new_jobs()
     job_records = create_job_dicts(jobs)
 
     if args.output_file is not None:
