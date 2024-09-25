@@ -52,7 +52,7 @@ test_expect_success 'wait for jobs to finish running' '
 '
 
 test_expect_success 'run fetch-job-records script' '
-	flux account-create-elastic-logs flux_jobs.ndjson
+	flux account-create-elastic-logs
 '
 
 test_expect_success 'remove flux-accounting DB' '
