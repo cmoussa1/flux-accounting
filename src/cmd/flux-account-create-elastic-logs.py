@@ -64,7 +64,7 @@ def fetch_new_jobs(last_timestamp=time.time() - (30 * 60)):
 
     # construct and send RPC
     rpc_handle = flux.job.job_list_inactive(
-        handle, since=last_timestamp, max_entries=10000
+        handle, since=last_timestamp, max_entries=100000
     )
     jobs = get_jobs(rpc_handle)
 
@@ -73,7 +73,7 @@ def fetch_new_jobs(last_timestamp=time.time() - (30 * 60)):
         job_data = flux.job.job_kvs_lookup(
             handle, job["id"], keys=["jobspec"], decode=False
         )
-        if job_data["jobspec"] is not None:
+        if job_data is not None and job_data.get("jobspec") is not None:
             try:
                 jobspec = json.loads(job_data["jobspec"])
                 accounting_attributes = jobspec.get("attributes", {}).get("system", {})
@@ -180,12 +180,13 @@ def main():
     )
     parser.add_argument(
         "--since",
+        type=int,
         help="fetch all jobs since a certain time (formatted in seconds since epoch)",
         metavar="TIMESTAMP",
     )
     args = parser.parse_args()
 
-    jobs = fetch_new_jobs()
+    jobs = fetch_new_jobs(args.since)
     job_records = create_job_dicts(jobs)
 
     if args.output_file is not None:
