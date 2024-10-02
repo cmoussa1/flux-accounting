@@ -71,7 +71,7 @@ def fetch_new_jobs(last_timestamp=time.time() - (30 * 60)):
     for job in jobs:
         # fetch jobspec
         job_data = flux.job.job_kvs_lookup(
-            handle, job["id"], keys=["jobspec"], decode=False
+            handle, job["id"], keys=["jobspec", "eventlog"], decode=False
         )
         if job_data is not None and job_data.get("jobspec") is not None:
             try:
@@ -85,6 +85,9 @@ def fetch_new_jobs(last_timestamp=time.time() - (30 * 60)):
                 # the job does not have a valid jobspec, so don't add it to
                 # the job dictionary
                 continue
+
+        if job_data is not None and job_data.get("eventlog") is not None:
+            job["eventlog"] = job_data.get("eventlog")
 
     return jobs
 
@@ -112,14 +115,16 @@ def create_job_dicts(jobs):
                 "bank",
                 "queue",
                 "expiration",
-                "nodelists",
+                "nodelist",
                 "nnodes",
+                "ntasks",
                 "cwd",
                 "urgency",
                 "success",
                 "result",
                 "queue",
                 "project",
+                "eventlog",
             ]
             if job.get(key) is not None
         }
@@ -130,9 +135,9 @@ def create_job_dicts(jobs):
             rec["gid"] = get_gid(rec["userid"])
             rec["groupname"] = get_groupname(rec["gid"])
 
-        if rec.get("t_run") is not None and rec.get("t_inactive") is not None:
+        if job.get("t_run") is not None and job.get("t_inactive") is not None:
             # compute job duration
-            rec["duration"] = rec["t_inactive"] - rec["t_run"]
+            rec["duration"] = job.get("t_inactive") - job.get("t_run")
 
         # convert timestamps to ISO8601
         if job.get("t_submit") is not None:
@@ -148,8 +153,13 @@ def create_job_dicts(jobs):
                 job["t_inactive"], tz=datetime.timezone.utc
             ).isoformat()
 
-        # TODO: compute number of processes * number of nodes
-        # TODO: compute eligible time?
+        if job.get("t_depend") is not None and job.get("t_run") is not None:
+            # compute eligible time
+            rec["t_eligible"] = job.get("t_run") - job.get("t_depend")
+
+        if job.get("nnodes") is not None and job.get("ntasks") is not None:
+            # compute number of processes * number of nodes
+            rec["proc.count"] = job.get("nnodes") * job.get("ntasks")
 
         # add scheduler used
         rec["scheduler"] = "flux"
