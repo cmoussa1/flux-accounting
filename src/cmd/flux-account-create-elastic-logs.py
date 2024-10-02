@@ -76,8 +76,12 @@ def fetch_new_jobs(last_timestamp=time.time() - (30 * 60)):
         if job_data is not None and job_data.get("jobspec") is not None:
             try:
                 jobspec = json.loads(job_data["jobspec"])
-                accounting_attributes = jobspec.get("attributes", {}).get("system", {})
 
+                job["duration"] = (
+                    jobspec.get("attributes", {}).get("system", {}).get("duration", {})
+                )
+
+                accounting_attributes = jobspec.get("attributes", {}).get("system", {})
                 job["bank"] = accounting_attributes.get("bank")
                 job["queue"] = accounting_attributes.get("queue")
                 job["project"] = accounting_attributes.get("project")
@@ -115,6 +119,7 @@ def create_job_dicts(jobs):
                 "bank",
                 "queue",
                 "expiration",
+                "duration",
                 "nodelist",
                 "nnodes",
                 "ntasks",
@@ -134,10 +139,6 @@ def create_job_dicts(jobs):
             rec["username"] = get_username(rec["userid"])
             rec["gid"] = get_gid(rec["userid"])
             rec["groupname"] = get_groupname(rec["gid"])
-
-        if job.get("t_run") is not None and job.get("t_inactive") is not None:
-            # compute job duration
-            rec["duration"] = job.get("t_inactive") - job.get("t_run")
 
         # convert timestamps to ISO8601
         if job.get("t_submit") is not None:
