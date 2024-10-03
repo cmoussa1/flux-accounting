@@ -52,7 +52,7 @@ def get_jobs(rpc_handle):
         sys.exit(1)
 
 
-def fetch_new_jobs(last_timestamp=time.time() - (30 * 60)):
+def fetch_new_jobs(last_timestamp=time.time() - 86400):
     """
     Fetch new jobs using Flux's job-list and job-info interfaces. Return a
     list of dictionaries that contain attribute information for inactive jobs.
