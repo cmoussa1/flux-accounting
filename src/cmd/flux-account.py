@@ -365,7 +365,7 @@ def add_list_banks_arg(subparsers):
         "--fields",
         type=str,
         help="list of fields to include in JSON output",
-        default="bank_id,bank,parent_bank,shares,job_usage",
+        default=None,
         metavar="BANK_ID,BANK,ACTIVE,PARENT_BANK,SHARES,JOB_USAGE",
     )
     subparser_list_banks.add_argument(
@@ -763,7 +763,7 @@ def select_accounting_function(args, output_file, parser):
         data = {
             "path": args.path,
             "inactive": args.inactive,
-            "fields": args.fields.split(","),
+            "fields": args.fields.split(",") if args.fields else None,
             "json": args.json,
         }
         return_val = flux.Flux().rpc("accounting.list_banks", data).get()
