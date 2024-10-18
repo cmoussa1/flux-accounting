@@ -368,6 +368,12 @@ def add_list_banks_arg(subparsers):
         default="bank_id,bank,parent_bank,shares,job_usage",
         metavar="BANK_ID,BANK,ACTIVE,PARENT_BANK,SHARES,JOB_USAGE",
     )
+    subparser_list_banks.add_argument(
+        "--json",
+        action="store_const",
+        const=True,
+        help="list all banks in JSON format",
+    )
 
 
 def add_update_usage_arg(subparsers):
@@ -758,6 +764,7 @@ def select_accounting_function(args, output_file, parser):
             "path": args.path,
             "inactive": args.inactive,
             "fields": args.fields.split(","),
+            "json": args.json,
         }
         return_val = flux.Flux().rpc("accounting.list_banks", data).get()
     elif args.func == "update_usage":

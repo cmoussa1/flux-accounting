@@ -10,9 +10,9 @@
 # SPDX-License-Identifier: LGPL-3.0
 ###############################################################
 import sqlite3
-import json
 
 from fluxacct.accounting import user_subcommands as u
+from fluxacct.util import util
 
 ###############################################################
 #                                                             #
@@ -423,23 +423,31 @@ def list_banks(
     conn,
     inactive=False,
     fields=None,
+    json_fmt=False,
 ):
     """
-    List all banks in the bank_table in JSON format.
+    List all banks in the bank_table.
 
     Args:
         inactive: whether to include inactive banks. By default, only banks that are
-        active will be included in the output.
-
+            active will be included in the output.
         fields: a list of fields to include in the output. By default, all fields are
-        included.
+            included.
+        json_fmt: output the data in the table in JSON format.
     """
-    default_fields = {"bank_id", "bank", "active", "parent_bank", "shares", "job_usage"}
-    # if fields is None, just use the default fields
-    fields = fields or default_fields
-
     try:
         cur = conn.cursor()
+
+        default_fields = [
+            "bank_id",
+            "active",
+            "bank",
+            "parent_bank",
+            "shares",
+            "job_usage",
+        ]
+        # if fields is None, just use the default fields
+        fields = fields or default_fields
 
         # validate the fields passed in
         invalid_fields = [field for field in fields if field not in default_fields]
@@ -453,14 +461,11 @@ def list_banks(
             select_stmt += " WHERE active=1"
 
         cur.execute(select_stmt)
-        result = cur.fetchall()
+        rows = cur.fetchall()
 
-        # create individual object for each row in the query result
-        banks = [
-            {field: row[idx] for idx, field in enumerate(fields)} for row in result
-        ]
+        if json_fmt:
+            return util.list_data_json(cur, rows)
 
-        json_string = json.dumps(banks, indent=2)
-        return json_string
+        return util.list_data_table(cur, rows)
     except sqlite3.Error as err:
         raise sqlite3.Error(f"an sqlite3.Error occurred: {err}")

@@ -332,6 +332,7 @@ class AccountingService:
                 self.conn,
                 msg.payload["inactive"],
                 msg.payload["fields"],
+                msg.payload["json"],
             )
 
             payload = {"list_banks": val}
