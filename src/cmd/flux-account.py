@@ -529,6 +529,29 @@ def add_list_projects_arg(subparsers):
     subparser_list_projects.set_defaults(func="list_projects")
 
 
+def add_calc_proj_usage_arg(subparsers):
+    subparser_get_proj_usage = subparsers.add_parser(
+        "calc-project-usage",
+        help="calculate the job usage under a certain project",
+        formatter_class=flux.util.help_formatter(),
+    )
+
+    subparser_get_proj_usage.set_defaults(func="calc_project_usage")
+    subparser_get_proj_usage.add_argument(
+        "--project", help="project name", metavar="PROJECT"
+    )
+    subparser_get_proj_usage.add_argument(
+        "-a",
+        help="after start time",
+        metavar="AFTER START TIME",
+    )
+    subparser_get_proj_usage.add_argument(
+        "-b",
+        help="before end time",
+        metavar="BEFORE END TIME",
+    )
+
+
 def add_scrub_job_records_arg(subparsers):
     subparser = subparsers.add_parser(
         "scrub-old-jobs",
@@ -639,6 +662,7 @@ def add_arguments_to_parser(parser, subparsers):
     add_view_project_arg(subparsers)
     add_delete_project_arg(subparsers)
     add_list_projects_arg(subparsers)
+    add_calc_proj_usage_arg(subparsers)
     add_scrub_job_records_arg(subparsers)
     add_export_db_arg(subparsers)
     add_pop_db_arg(subparsers)
@@ -821,6 +845,14 @@ def select_accounting_function(args, output_file, parser):
             "path": args.path,
         }
         return_val = flux.Flux().rpc("accounting.list_projects", data).get()
+    elif args.func == "calc_project_usage":
+        data = {
+            "path": args.path,
+            "project": args.project,
+            "after_start_time": args.a,
+            "before_end_time": args.b,
+        }
+        return_val = flux.Flux().rpc("accounting.calc_project_usage", data).get()
     elif args.func == "scrub_old_jobs":
         data = {
             "path": args.path,

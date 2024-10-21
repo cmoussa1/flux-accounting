@@ -112,6 +112,7 @@ class AccountingService:
             "export_db",
             "pop_db",
             "shutdown_service",
+            "calc_project_usage",
         ]
 
         for name in general_endpoints:
@@ -523,6 +524,27 @@ class AccountingService:
             handle.respond(msg, payload)
         except KeyError as exc:
             handle.respond_error(msg, 0, f"missing key in payload: {exc}")
+        except Exception as exc:
+            handle.respond_error(
+                msg, 0, f"a non-OSError exception was caught: {str(exc)}"
+            )
+
+    def calc_project_usage(self, handle, watcher, msg, arg):
+        try:
+            val = p.calc_project_usage(
+                self.conn,
+                msg.payload["project"],
+                msg.payload["after_start_time"],
+                msg.payload["before_end_time"],
+            )
+
+            payload = {"calc_project_usage": val}
+
+            handle.respond(msg, payload)
+        except KeyError as exc:
+            handle.respond_error(msg, 0, f"missing key in payload: {exc}")
+        except sqlite3.Error as exc:
+            handle.respond_error(msg, 0, f"a SQLite error occurred: {exc}")
         except Exception as exc:
             handle.respond_error(
                 msg, 0, f"a non-OSError exception was caught: {str(exc)}"

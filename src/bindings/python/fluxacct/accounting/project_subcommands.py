@@ -11,6 +11,7 @@
 ###############################################################
 import sqlite3
 
+from fluxacct.accounting import jobs_table_subcommands as j
 
 ###############################################################
 #                                                             #
@@ -144,3 +145,52 @@ def list_projects(conn):
     table = f"{header}\n{separator}\n{data_rows}"
 
     return table
+
+
+def calc_project_usage(conn, project=None, after=None, before=None):
+    """
+    Report job usage by project.
+
+    Args:
+        conn: the SQLite connection object used to connect to the DB.
+        project: an optional project name to specify
+            (will only calculate usage for that project)
+        after_start_time: only calculate usage for jobs under project after this time
+        before_end_time: only calculate usage for jobs under project before this time
+    """
+    cur = conn.cursor()
+
+    # get all registered projects by default
+    select_stmt = f"SELECT project FROM project_table"
+    if project:
+        select_stmt += f" WHERE project='{project}'"
+    cur.execute(select_stmt)
+    rows = cur.fetchall()
+
+    for proj in rows:
+        # fetch all jobs from table under project
+        project_jobs = j.convert_to_obj(
+            j.get_jobs(
+                conn, project=proj[0], after_start_time=after, before_end_time=before
+            )
+        )
+        project_usage = 0
+        for job in project_jobs:
+            project_usage += round((job.nnodes * job.elapsed), 5)
+        if not project and not after and not before:
+            # no project or time bounds were specified;
+            # update the usage for each project in project_table
+            cur.execute(
+                "UPDATE project_table SET usage=? WHERE project=?",
+                (
+                    project_usage,
+                    proj[0],
+                ),
+            )
+            conn.commit()
+
+    if project:
+        # otherwise, return the project usage for a specific project
+        return f"usage for project {project}: {project_usage}"
+
+    return f"updated all-time job usage for all projects"
