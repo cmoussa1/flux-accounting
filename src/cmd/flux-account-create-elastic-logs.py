@@ -63,9 +63,7 @@ def fetch_new_jobs(last_timestamp=time.time() - 86400):
     handle = flux.Flux()
 
     # construct and send RPC
-    rpc_handle = flux.job.job_list_inactive(
-        handle, since=last_timestamp, max_entries=100000
-    )
+    rpc_handle = flux.job.job_list_inactive(handle, since=last_timestamp, max_entries=0)
     jobs = get_jobs(rpc_handle)
 
     for job in jobs:
@@ -139,6 +137,10 @@ def create_job_dicts(jobs):
             rec["username"] = get_username(rec["userid"])
             rec["gid"] = get_gid(rec["userid"])
             rec["groupname"] = get_groupname(rec["gid"])
+
+        if job.get("expiration") is not None and job.get("t_submit") is not None:
+            # convert expiration to total seconds
+            rec["expiration"] = job.get("expiration") - job.get("t_submit")
 
         # convert timestamps to ISO8601
         if job.get("t_submit") is not None:
