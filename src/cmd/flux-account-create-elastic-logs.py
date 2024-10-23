@@ -22,6 +22,9 @@ import flux
 import flux.job
 
 
+queue_timelimits = {}
+
+
 def get_username(uid):
     try:
         return pwd.getpwuid(uid).pw_name
@@ -61,6 +64,19 @@ def fetch_new_jobs(last_timestamp=time.time() - 86400):
     finished since this time.
     """
     handle = flux.Flux()
+
+    # get queue information
+    future = handle.rpc("config.get")
+    try:
+        qlist = future.get()
+    except EnvironmentError:
+        sys.exit(1)
+
+    queue_info = qlist.get("queues")
+    if queue_info is not None:
+        for q in queue_info:
+            # place queue name and time limit in map
+            queue_timelimits[q] = queue_info[q]["policy"]["limits"]["duration"]
 
     # construct and send RPC
     rpc_handle = flux.job.job_list_inactive(handle, since=last_timestamp, max_entries=0)
@@ -116,7 +132,6 @@ def create_job_dicts(jobs):
                 "state",
                 "bank",
                 "queue",
-                "expiration",
                 "duration",
                 "nodelist",
                 "nnodes",
@@ -132,15 +147,15 @@ def create_job_dicts(jobs):
             if job.get(key) is not None
         }
 
+        if rec.get("queue") is not None:
+            # place max timelimit for queue in job record
+            rec["queue_max_timelimit"] = queue_timelimits[rec.get("queue")]
+
         if rec.get("userid") is not None:
             # add username, gid, groupname
             rec["username"] = get_username(rec["userid"])
             rec["gid"] = get_gid(rec["userid"])
             rec["groupname"] = get_groupname(rec["gid"])
-
-        if job.get("expiration") is not None and job.get("t_submit") is not None:
-            # convert expiration to total seconds
-            rec["expiration"] = job.get("expiration") - job.get("t_submit")
 
         # convert timestamps to ISO8601
         if job.get("t_submit") is not None:
@@ -155,10 +170,18 @@ def create_job_dicts(jobs):
             rec["t_inactive"] = datetime.datetime.fromtimestamp(
                 job["t_inactive"], tz=datetime.timezone.utc
             ).isoformat()
+        if job.get("expiration") is not None:
+            rec["expiration"] = datetime.datetime.fromtimestamp(
+                job.get("expiration"), tz=datetime.timezone.utc
+            ).isoformat()
 
         if job.get("t_depend") is not None and job.get("t_run") is not None:
             # compute eligible time
             rec["t_eligible"] = job.get("t_run") - job.get("t_depend")
+
+        if job.get("t_inactive") is not None and job.get("t_run") is not None:
+            # compute actual execution time
+            rec["actual_duration"] = round(job.get("t_inactive") - job.get("t_run"), 1)
 
         if job.get("nnodes") is not None and job.get("ntasks") is not None:
             # compute number of processes * number of nodes
