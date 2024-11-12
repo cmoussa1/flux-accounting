@@ -67,7 +67,10 @@ test_expect_success 'check that usage does not get affected by canceled jobs' '
 
 test_expect_success 'check that no jobs show up under user' '
 	flux account -p ${DB_PATH} view-job-records --user $username > no_jobs.test &&
-	test_cmp ${NO_JOBS} no_jobs.test
+	cat <<-EOF >no_jobs.expected &&
+	userid  username  jobid  t_submit  t_run  t_inactive  nnodes  project  bank
+	EOF
+	test_cmp no_jobs.expected no_jobs.test
 '
 
 test_expect_success 'submit some jobs and wait for them to finish running' '
