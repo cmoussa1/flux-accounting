@@ -94,3 +94,46 @@ class AccountingFormatter:
         json_string = json.dumps(table_data, indent=2)
 
         return json_string
+
+
+class JobsFormatter:
+    def __init__(self, job_records):
+        """
+        Initialize an JobsFormatter object with a list of job records.
+
+        Args:
+            job_records: a list of job records used for output.
+        """
+        self.job_records = job_records
+
+    def as_columns(self, fields):
+        """
+        Return the rows of job records in spaced columns with the option to only
+        include specified fields.
+
+        Args:
+            fields: A comma-separated list of fields to include in the output.
+        """
+        if not self.job_records:
+            return "  ".join(f"{header:<{len(header)}}" for header in fields)
+
+        # calculate the maximum width for each selected column
+        column_widths = []
+        for header in fields:
+            max_width = max(
+                len(header),
+                *(
+                    len(str(getattr(record, header.lower(), "")))
+                    for record in self.job_records
+                ),
+            )
+            column_widths.append(max_width + 1)
+
+        format_str = " ".join("{:<" + str(width) + "}" for width in column_widths)
+        job_record_str = [format_str.format(*fields)]  # header row
+
+        for record in self.job_records:
+            row_data = [str(getattr(record, header.lower(), "")) for header in fields]
+            job_record_str.append(format_str.format(*row_data))
+
+        return "\n".join(job_record_str)
