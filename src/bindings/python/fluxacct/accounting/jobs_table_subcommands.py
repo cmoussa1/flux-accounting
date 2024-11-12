@@ -14,6 +14,7 @@ import csv
 import json
 
 from flux.resource import ResourceSet
+from fluxacct.accounting import formatter as fmt
 
 
 def get_username(userid):
@@ -103,41 +104,32 @@ def write_records_to_file(job_records, output_file):
             )
 
 
-def convert_to_str(job_records):
+def convert_to_str(job_records, fields):
     """
     Convert the results of a query to the jobs table to a readable string
     that can either be output to stdout or written to a file.
     """
-    job_record_str = []
-    job_record_str.append(
-        "{:<10} {:<10} {:<20} {:<20} {:<20} {:<20} {:<10} {:<20} {:<20}".format(
-            "UserID",
-            "Username",
-            "JobID",
-            "T_Submit",
-            "T_Run",
-            "T_Inactive",
-            "Nodes",
-            "Project",
-            "Bank",
-        )
-    )
-    for record in job_records:
-        job_record_str.append(
-            "{:<10} {:<10} {:<20} {:<20} {:<20} {:<20} {:<10} {:<20} {:<20}".format(
-                record.userid,
-                record.username,
-                record.jobid,
-                record.t_submit,
-                record.t_run,
-                record.t_inactive,
-                record.nnodes,
-                record.project,
-                record.bank,
-            )
+    default_fields = [
+        "userid",
+        "username",
+        "jobid",
+        "t_submit",
+        "t_run",
+        "t_inactive",
+        "nnodes",
+        "project",
+        "bank",
+    ]
+    fields = fields or default_fields
+    invalid_fields = [field for field in fields if field not in default_fields]
+    if invalid_fields:
+        raise ValueError(
+            f"view-job-records: invalid fields: {', '.join(invalid_fields)}"
         )
 
-    return "\n".join(job_record_str)
+    job_record_str = fmt.JobsFormatter(job_records)
+
+    return job_record_str.as_columns(fields)
 
 
 def convert_to_obj(rows):
@@ -285,11 +277,11 @@ def get_jobs(conn, **kwargs):
     return job_records
 
 
-def view_jobs(conn, output_file, **kwargs):
+def view_jobs(conn, output_file, fields, **kwargs):
     # look up jobs in jobs table
     job_records = convert_to_obj(get_jobs(conn, **kwargs))
     # convert query result to a readable string
-    job_records_str = convert_to_str(job_records)
+    job_records_str = convert_to_str(job_records, fields)
 
     if output_file is None:
         return job_records_str

@@ -240,6 +240,13 @@ def add_view_job_records_arg(subparsers):
         help="bank",
         metavar="BANK",
     )
+    subparser_view_job_records.add_argument(
+        "--fields",
+        type=str,
+        help="list of fields to include in output",
+        default="userid,username,jobid,t_submit,t_run,t_inactive,nnodes,project,bank",
+        metavar="USERID,USERNAME,JOBID,T_SUBMIT,T_RUN,T_INACTIVE,NNODES,PROJECT,BANK",
+    )
 
 
 def add_create_db_arg(subparsers):
