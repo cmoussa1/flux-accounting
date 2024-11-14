@@ -55,7 +55,7 @@ def get_jobs(rpc_handle):
         sys.exit(1)
 
 
-def fetch_new_jobs(last_timestamp=time.time() - 86400):
+def fetch_new_jobs(last_timestamp=time.time() - 300):
     """
     Fetch new jobs using Flux's job-list and job-info interfaces. Return a
     list of dictionaries that contain attribute information for inactive jobs.
@@ -72,11 +72,10 @@ def fetch_new_jobs(last_timestamp=time.time() - 86400):
     except EnvironmentError:
         sys.exit(1)
 
-    queue_info = qlist.get("queues")
-    if queue_info is not None:
-        for q in queue_info:
-            # place queue name and time limit in map
-            queue_timelimits[q] = queue_info[q]["policy"]["limits"]["duration"]
+    queue_info = qlist["queues"]
+    for q in queue_info:
+        # place queue name and time limit in map
+        queue_timelimits[q] = queue_info[q]["policy"]["limits"]["duration"]
 
     # construct and send RPC
     rpc_handle = flux.job.job_list_inactive(handle, since=last_timestamp, max_entries=0)
@@ -85,11 +84,12 @@ def fetch_new_jobs(last_timestamp=time.time() - 86400):
     for job in jobs:
         # fetch jobspec
         job_data = flux.job.job_kvs_lookup(
-            handle, job["id"], keys=["jobspec", "eventlog"], decode=False
+            handle, job["id"], keys=["jobspec", "eventlog"], decode=True
         )
         if job_data is not None and job_data.get("jobspec") is not None:
             try:
-                jobspec = json.loads(job_data["jobspec"])
+                jobspec = job_data["jobspec"]
+                job["jobspec"] = job_data["jobspec"]
 
                 job["duration"] = (
                     jobspec.get("attributes", {}).get("system", {}).get("duration", {})
@@ -143,6 +143,7 @@ def create_job_dicts(jobs):
                 "queue",
                 "project",
                 "eventlog",
+                "jobspec",
             ]
             if job.get(key) is not None
         }
@@ -171,6 +172,7 @@ def create_job_dicts(jobs):
                 job["t_inactive"], tz=datetime.timezone.utc
             ).isoformat()
         if job.get("expiration") is not None:
+            # convert expiration to total seconds
             rec["expiration"] = datetime.datetime.fromtimestamp(
                 job.get("expiration"), tz=datetime.timezone.utc
             ).isoformat()
