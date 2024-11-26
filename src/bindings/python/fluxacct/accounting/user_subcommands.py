@@ -233,7 +233,7 @@ def clear_projects(conn, username, bank=None):
 #                   Subcommand Functions                      #
 #                                                             #
 ###############################################################
-def view_user(conn, user, parsable=False, cols=None):
+def view_user(conn, user, parsable=False, cols=None, list_banks=False):
     # use all column names if none are passed in
     cols = cols or fluxacct.accounting.ASSOCIATION_TABLE
 
@@ -252,6 +252,8 @@ def view_user(conn, user, parsable=False, cols=None):
 
         if parsable:
             return formatter.as_table()
+        if list_banks:
+            return formatter.list_banks(user)
         return formatter.as_json()
     # this kind of exception is raised for errors related to the DB's operation,
     # not necessarily under the control of the programmer, e.g DB path cannot be
