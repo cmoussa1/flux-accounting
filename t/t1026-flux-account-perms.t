@@ -157,6 +157,16 @@ test_expect_success 'pop-db should not be accessible by all users' '
 	)
 '
 
+test_expect_success 'load-config should not be accessible by all users' '
+	newid=$(($(id -u)+1)) &&
+	( export FLUX_HANDLE_ROLEMASK=0x2 &&
+	  export FLUX_HANDLE_USERID=$newid &&
+		touch config.toml &&
+		test_must_fail flux account load-config --config-path config.toml > no_access_load_config.out 2>&1 &&
+		grep "Request requires owner credentials" no_access_load_config.out
+	)
+'
+
 test_expect_success 'remove flux-accounting DB' '
 	rm $(pwd)/FluxAccountingTest.db
 '
