@@ -632,6 +632,19 @@ def add_pop_db_arg(subparsers):
     )
 
 
+def add_load_config_arg(subparsers):
+    subparser = subparsers.add_parser(
+        "load-config",
+        help="initialize data in flux-accounting DB from a TOML config file",
+        formatter_class=flux.util.help_formatter(),
+    )
+    subparser.set_defaults(func="load_config")
+    subparser.add_argument(
+        "--config-path",
+        help="optional path to TOML config file",
+    )
+
+
 def add_arguments_to_parser(parser, subparsers):
     add_path_arg(parser)
     add_output_file_arg(parser)
@@ -658,6 +671,7 @@ def add_arguments_to_parser(parser, subparsers):
     add_scrub_job_records_arg(subparsers)
     add_export_db_arg(subparsers)
     add_pop_db_arg(subparsers)
+    add_load_config_arg(subparsers)
 
 
 def set_db_location(args):
@@ -700,6 +714,7 @@ def select_accounting_function(args, output_file, parser):
         "scrub_old_jobs": "accounting.scrub_old_jobs",
         "export_db": "accounting.export_db",
         "pop_db": "accounting.pop_db",
+        "load_config": "accounting.load_config",
     }
 
     if args.func in func_map:

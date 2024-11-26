@@ -26,6 +26,7 @@ from fluxacct.accounting import queue_subcommands as qu
 from fluxacct.accounting import project_subcommands as p
 from fluxacct.accounting import jobs_table_subcommands as j
 from fluxacct.accounting import db_info_subcommands as d
+from fluxacct.accounting import config_util as c
 
 
 def establish_sqlite_connection(path):
@@ -112,6 +113,7 @@ class AccountingService:
             "export_db",
             "pop_db",
             "shutdown_service",
+            "load_config",
         ]
 
         for name in general_endpoints:
@@ -571,6 +573,29 @@ class AccountingService:
             )
 
             payload = {"pop_db": val}
+
+            handle.respond(msg, payload)
+        except KeyError as exc:
+            handle.respond_error(msg, 0, f"missing key in payload: {exc}")
+        except Exception as exc:
+            handle.respond_error(
+                msg, 0, f"a non-OSError exception was caught: {str(exc)}"
+            )
+
+    def load_config(self, handle, watcher, msg, arg):
+        try:
+            filepath = flux_config = None
+            if msg.payload.get("config_path") is not None:
+                filepath = msg.payload["config_path"]
+            else:
+                flux_config = handle.conf_get()
+            val = c.initialize_from_toml(
+                self.conn,
+                flux_config,
+                filepath,
+            )
+
+            payload = {"load_config": val}
 
             handle.respond(msg, payload)
         except KeyError as exc:
