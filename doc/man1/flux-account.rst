@@ -82,14 +82,30 @@ BANK ADMINISTRATION
 view-bank
 ^^^^^^^^^
 
+View information about a bank in the flux-accounting database.
+
+See :man1:`flux-account-view-bank` for more details.
+
 add-bank
 ^^^^^^^^
+
+Add a bank to the flux-accounting database.
+
+See :man1:`flux-account-add-bank` for more details.
 
 delete-bank
 ^^^^^^^^^^^
 
+Set a bank to inactive in the flux-accounting database.
+
+See :man1:`flux-account-delete-bank` for more details.
+
 edit-bank
 ^^^^^^^^^
+
+Modify an attribute for a bank in the flux-accounting database,
+
+See :man1:`flux-account-edit-bank` for more details.
 
 list-banks
 ^^^^^^^^^^
