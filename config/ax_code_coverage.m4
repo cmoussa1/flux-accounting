@@ -203,7 +203,7 @@ code-coverage-clean:
 # use the git-version-gen script, available online.
 
 # Optional variables
-CODE_COVERAGE_DIRECTORY ?= $(top_builddir)
+CODE_COVERAGE_DIRECTORY ?= $(top_builddir) $(top_buildir)/src/bindings/python/fluxacct/accounting/
 CODE_COVERAGE_OUTPUT_FILE ?= $(PACKAGE_NAME)-$(PACKAGE_VERSION)-coverage.info
 CODE_COVERAGE_OUTPUT_DIRECTORY ?= $(PACKAGE_NAME)-$(PACKAGE_VERSION)-coverage
 CODE_COVERAGE_BRANCH_COVERAGE ?=
