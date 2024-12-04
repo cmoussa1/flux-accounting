@@ -1,15 +1,5 @@
 #!/usr/bin/env python3
 
-###############################################################
-# Copyright 2023 Lawrence Livermore National Security, LLC
-# (c.f. AUTHORS, NOTICE.LLNS, COPYING)
-#
-# This file is part of the Flux resource manager framework.
-# For details, see https://github.com/flux-framework.
-#
-# SPDX-License-Identifier: LGPL-3.0
-###############################################################
-
 import sys
 import json
 import argparse
@@ -55,7 +45,7 @@ def get_jobs(rpc_handle):
         sys.exit(1)
 
 
-def fetch_new_jobs(last_timestamp=time.time() - 300):
+def fetch_new_jobs(last_timestamp=time.time() - 3600):
     """
     Fetch new jobs using Flux's job-list and job-info interfaces. Return a
     list of dictionaries that contain attribute information for inactive jobs.
@@ -72,10 +62,11 @@ def fetch_new_jobs(last_timestamp=time.time() - 300):
     except EnvironmentError:
         sys.exit(1)
 
-    queue_info = qlist["queues"]
-    for q in queue_info:
-        # place queue name and time limit in map
-        queue_timelimits[q] = queue_info[q]["policy"]["limits"]["duration"]
+    queue_info = qlist.get("queues")
+    if queue_info is not None:
+        for q in queue_info:
+            # place queue name and time limit in map
+            queue_timelimits[q] = queue_info[q]["policy"]["limits"]["duration"]
 
     # construct and send RPC
     rpc_handle = flux.job.job_list_inactive(handle, since=last_timestamp, max_entries=0)
@@ -212,11 +203,6 @@ def main():
     )
 
     parser.add_argument(
-        "--output-file",
-        help="specify output file",
-        metavar="OUTPUT_FILE",
-    )
-    parser.add_argument(
         "--since",
         type=int,
         help="fetch all jobs since a certain time (formatted in seconds since epoch)",
@@ -227,12 +213,8 @@ def main():
     jobs = fetch_new_jobs(args.since) if args.since is not None else fetch_new_jobs()
     job_records = create_job_dicts(jobs)
 
-    if args.output_file is not None:
-        print(f"writing to file: {args.output_file}")
-        write_to_file(job_records, args.output_file)
-    else:
-        for job in job_records:
-            print(job)
+    filename = f"{round(time.time())}_flux_jobs.ndjson"
+    write_to_file(job_records, filename)
 
 
 if __name__ == "__main__":
