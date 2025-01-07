@@ -32,6 +32,8 @@ extern "C" {
 
 // custom bank_info class file
 #include "accounting.hpp"
+// custom job resource counting file
+#include "jj.hpp"
 
 // the plugin does not know about the association who submitted a job and will
 // assign default values to the association until it receives information from
@@ -883,6 +885,20 @@ static int run_cb (flux_plugin_t *p,
 {
     int userid;
     Association *b;
+    json_t *jobspec = NULL;
+    struct jj_counts counts;
+
+    flux_t *h = flux_jobtap_get_flux (p);
+    if (flux_plugin_arg_unpack (args,
+                                FLUX_PLUGIN_ARG_IN,
+                                "{s:o}",
+                                "jobspec", &jobspec) < 0) {
+        flux_log (h,
+                  LOG_ERR,
+                  "flux_plugin_arg_unpack: %s",
+                  flux_plugin_arg_strerror (args));
+        return -1;
+    }
 
     b = static_cast<Association *>
         (flux_jobtap_job_aux_get (p,
@@ -899,6 +915,21 @@ static int run_cb (flux_plugin_t *p,
 
     // increment the user's current running jobs count
     b->cur_run_jobs++;
+
+    if (jobspec) {
+        if (jj_get_counts_json (jobspec, &counts) < 0) {
+            flux_jobtap_raise_exception (p,
+                                         FLUX_JOBTAP_CURRENT_JOB,
+                                         "mf_priority",
+                                         0,
+                                         "job.state.run: unable to unpack " \
+                                         "jobspec");
+            return -1;
+        } else {
+            b->cur_nodes = b->cur_nodes + counts.nnodes;
+            b->cur_cores = b->cur_cores + (counts.nslots * counts.slot_size);
+        }
+    }
 
     return 0;
 }
@@ -1099,12 +1130,15 @@ static int inactive_cb (flux_plugin_t *p,
 {
     int userid;
     Association *b;
+    json_t *jobspec = NULL;
+    struct jj_counts counts;
 
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:i}",
-                                "userid", &userid) < 0) {
+                                "{s:i, s:o}",
+                                "userid", &userid,
+                                "jobspec", &jobspec) < 0) {
         flux_log (h,
                   LOG_ERR,
                   "flux_plugin_arg_unpack: %s",
@@ -1131,8 +1165,22 @@ static int inactive_cb (flux_plugin_t *p,
         return 0;
 
     // this job was running, so decrement the current running jobs count
-    // and look to see if any held jobs can be released
+    // and the resources count and look to see if any held jobs can be released
     b->cur_run_jobs--;
+    if (jobspec) {
+        if (jj_get_counts_json (jobspec, &counts) < 0) {
+            flux_jobtap_raise_exception (p,
+                                         FLUX_JOBTAP_CURRENT_JOB,
+                                         "mf_priority",
+                                         0,
+                                         "job.state.inactive: unable to " \
+                                         "unpack jobspec");
+            return -1;
+        } else {
+            b->cur_nodes = b->cur_nodes - counts.nnodes;
+            b->cur_cores = b->cur_cores - (counts.nslots * counts.slot_size);
+        }
+    }
 
     // if the user/bank combo has any currently held jobs and the user is now
     // under their max jobs limit, remove the dependency from first held job
