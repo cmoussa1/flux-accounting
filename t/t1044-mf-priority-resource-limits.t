@@ -43,8 +43,11 @@ test_expect_success 'add banks' '
 	flux account add-bank --parent-bank=root A 1
 '
 
-test_expect_success 'add an association' '
-	flux account add-user --username=user1 --userid=5001 --bank=A
+test_expect_success 'add an association, configure max resource limits' '
+	flux account add-user \
+		--username=user1 --userid=5001 --bank=A \
+		--max-active-jobs=1000 --max-running-jobs=999 \
+		--max-nodes=2 --max-cores=3
 '
 
 test_expect_success 'send flux-accounting DB information to the plugin' '
@@ -89,6 +92,40 @@ test_expect_success 'cancel job; check resource counts' '
 	test_debug "jq -S . <query.json" &&
 	jq -e ".mf_priority_map[] | select(.userid == 5001) | .banks[0].cur_nodes == 0" <query.json &&
 	jq -e ".mf_priority_map[] | select(.userid == 5001) | .banks[0].cur_cores == 0" <query.json
+'
+
+test_expect_success 'submit enough jobs to take up max-nodes limit' '
+	job1=$(flux python ${SUBMIT_AS} 5001 -N1 sleep 60) &&
+	flux job wait-event -f json ${job1} priority &&
+	job2=$(flux python ${SUBMIT_AS} 5001 -N1 sleep 60) &&
+	flux job wait-event -f json ${job2} priority
+'
+
+test_expect_success 'check resource counts of association' '
+	flux jobtap query mf_priority.so > query.json &&
+	test_debug "jq -S . <query.json" &&
+	jq -e ".mf_priority_map[] | select(.userid == 5001) | .banks[0].max_nodes == 2" <query.json &&
+	jq -e ".mf_priority_map[] | select(.userid == 5001) | .banks[0].cur_nodes == 2" <query.json
+'
+
+test_expect_success 'trigger max-nodes limit for association' '
+	job3=$(flux python ${SUBMIT_AS} 5001 -N1 sleep 60) &&
+	flux job wait-event -vt 10 \
+		--match-context=description="max-resource-user-limit" \
+		${job3} dependency-add &&
+	flux jobtap query mf_priority.so > query.json &&
+	test_debug "jq -S . <query.json" &&
+	jq -e ".mf_priority_map[] | select(.userid == 5001) | .banks[0].held_jobs | length == 1" <query.json
+'
+
+test_expect_success 'cancel first job; check inactive_cb()' '
+	flux cancel ${job1} &&
+	flux job wait-event -vt 10 ${job3} alloc
+'
+
+test_expect_success 'sleep and then cancel the other jobs' '
+	flux cancel ${job2} &&
+	flux cancel ${job3}
 '
 
 test_done
