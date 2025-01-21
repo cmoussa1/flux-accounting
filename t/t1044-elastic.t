@@ -47,6 +47,13 @@ test_expect_success 'submit some sleep 1 jobs under one user' '
 	jobid3=$(flux submit -n 2 -N 2 --setattr=system.bank=bankA sleep 1)
 '
 
+test_expect_success 'submit a job that gets canceled' '
+	jobid4=$(flux submit -N 1 --setattr=system.bank=bankA sleep 60) &&
+	sleep 5 &&
+	flux cancel ${jobid4} &&
+	flux job info ${jobid4} eventlog
+'
+
 test_expect_success 'wait for jobs to finish running' '
 	sleep 5
 '
