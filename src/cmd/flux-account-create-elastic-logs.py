@@ -7,6 +7,8 @@ import pwd
 import grp
 import time
 import datetime
+import os
+from typing import Optional, Tuple
 
 import flux
 import flux.job
@@ -14,6 +16,7 @@ import flux.job
 
 queue_timelimits = {}
 
+LOG_FILE = "create_flux_job_logs.log"
 OUTCOME_CONVERSION = {1: "COMPLETED", 2: "FAILED", 4: "CANCELLED", 8: "TIMEOUT"}
 
 
@@ -47,6 +50,40 @@ def get_jobs(rpc_handle) -> list:
         sys.exit(1)
 
 
+def log_status(status) -> None:
+    """
+    Logs either SUCCESS or FAILURE with a timestamp.
+    """
+    timestamp = time.time()
+    entry = f"{status} = {timestamp}\n"
+
+    if not os.path.exists(LOG_FILE):
+        # the log file does not exist yet; create the file
+        open(LOG_FILE, "w").close()
+
+    # overwrite log on SUCCESS, append on FAILURE
+    mode = "w" if status == "SUCCESS" else "a"
+
+    with open(LOG_FILE, mode) as log:
+        log.write(entry)
+
+
+def read_first_entry() -> Optional[Tuple[str, int]]:
+    """
+    Process the first line of the log file and return it.
+    """
+    if not os.path.exists(LOG_FILE):
+        # the log file does not exist; don't return anything
+        return None
+
+    with open(LOG_FILE, "r") as log:
+        first_line = log.readline().strip()
+        if first_line:
+            key, value = first_line.split(" = ")
+            return key, value
+    return None
+
+
 def fetch_new_jobs(last_timestamp) -> list:
     """
     Fetch new jobs using Flux's job-list and job-info interfaces. Return a
@@ -55,11 +92,29 @@ def fetch_new_jobs(last_timestamp) -> list:
     last_timstamp: a timestamp field to filter to only look for jobs that have
     finished since this time.
     """
+    try:
+        handle = flux.Flux()
+    except Exception as exc:
+        # Flux is down or this logging script wasn't able to connect to the instance;
+        # log an error message and exit
+        log_status("FAILURE")
+        print("Could not connect to Flux instance; Flux may be down", file=sys.stderr)
+        print(f"exception message: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    result = read_first_entry()
+    if result:
+        key, failure_timestamp = result
+        if key == "FAILURE":
+            # the log file reported a FAILURE status message the last time this
+            # script ran; set the last timestamp to one hour before the first
+            # logged FAILURE
+            last_timestamp = failure_timestamp - 3900
+
     if last_timestamp is None:
         # a timestamp wasn't specified; default to gathering all jobs
         # that finished in the last hour
         last_timestamp = time.time() - 3600
-    handle = flux.Flux()
 
     # get queue information
     future = handle.rpc("config.get")
@@ -151,6 +206,7 @@ def create_job_dicts(jobs) -> list:
         rec["job"]["cwd"] = job.get("cwd")
         rec["job"]["urgency"] = job.get("urgency")
         rec["job"]["success"] = job.get("success")
+        rec["job"]["exit_code"] = job.get("waitstatus")
 
         if job.get("result") is not None:
             # convert outcome code to a text value
@@ -204,8 +260,10 @@ def create_job_dicts(jobs) -> list:
             # compute number of processes * number of nodes
             rec["job"]["proc"]["count"] = job.get("nnodes") * job.get("ntasks")
 
-        if job.get("exception_occurred") is not None and job.get("exception_occurred") == True:
-            print(f"exception occurred!")
+        if (
+            job.get("exception_occurred") is not None
+            and job.get("exception_occurred") == True
+        ):
             if job.get("exception_type") is not None:
                 rec["job"]["exception_type"] = job.get("exception_type")
             if job.get("exception_note") is not None:
@@ -223,6 +281,8 @@ def write_to_file(job_records, output_file):
     with open(output_file, "a") as fp:
         for record in job_records:
             fp.write(json.dumps(record) + "\n")
+    # log SUCCESS
+    log_status("SUCCESS")
 
 
 def main():
