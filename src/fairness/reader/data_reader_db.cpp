@@ -65,8 +65,8 @@ add_assoc () constructs a weighted_tree_node_t object out of a
 association's data and adds it to the weighted tree.
 */
 int data_reader_db_t::add_assoc (const std::string &username,
-                                 const std::string &shrs,
-                                 const std::string &usg,
+                                 uint64_t shrs,
+                                 uint64_t usg,
                                  double fshare,
                                  std::shared_ptr<weighted_tree_node_t> &node)
 {
@@ -74,8 +74,8 @@ int data_reader_db_t::add_assoc (const std::string &username,
     auto user_node = std::make_shared<weighted_tree_node_t> (node,
                                                              username,
                                                              true,
-                                                             std::stoll (shrs),
-                                                             std::stoll (usg));
+                                                             shrs,
+                                                             usg);
     user_node->set_fshare (fshare);
     return node->add_child (user_node);
 }
@@ -230,7 +230,7 @@ std::shared_ptr<weighted_tree_node_t> data_reader_db_t::get_sub_banks (
 
     // we've reached a bank with no sub banks, so add associations to the tree
     if (rc != SQLITE_ROW) {
-        double bank_usg = 0.0;
+        uint64_t bank_usg = 0.0;
 
         rc = sqlite3_bind_text (c_assoc, 1, bank_name.c_str (), -1, NULL);
         if (rc != SQLITE_OK) {
@@ -245,10 +245,8 @@ std::shared_ptr<weighted_tree_node_t> data_reader_db_t::get_sub_banks (
         while (rc == SQLITE_ROW) {
             std::string username = reinterpret_cast<char const *> (
                 sqlite3_column_text (c_assoc, 0));
-            std::string shrs = reinterpret_cast<char const *> (
-                sqlite3_column_text (c_assoc, 1));
-            std::string usage = reinterpret_cast<char const *> (
-                sqlite3_column_text (c_assoc, 3));
+            uint64_t shrs = sqlite3_column_int64 (c_assoc, 1);
+            uint64_t usage = sqlite3_column_int64 (c_assoc, 3);
             double fshare = sqlite3_column_double (c_assoc, 4);
             int active = sqlite3_column_int (c_assoc, 5);
 
@@ -262,7 +260,7 @@ std::shared_ptr<weighted_tree_node_t> data_reader_db_t::get_sub_banks (
                         return nullptr;
                     }
 
-                    bank_usg += std::stod (usage);
+                    bank_usg += usage;
                 }
                 catch (const std::invalid_argument &ia) {
                     m_err_msg += "Invalid argument: "
