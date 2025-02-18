@@ -109,6 +109,20 @@ man_pages = [
         1,
     ),
     (
+        "man1/flux-account-view-queue",
+        "flux-account-view-queue",
+        "view information about a queue in the flux-accounting database",
+        [author],
+        1,
+    ),
+    (
+        "man1/flux-account-add-queue",
+        "flux-account-add-queue",
+        "add a queue to the flux-accounting database",
+        [author],
+        1,
+    ),
+    (
         "man5/flux-config-accounting",
         "flux-config-accounting",
         "flux-accounting priority plugin configuration file",

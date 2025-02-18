@@ -120,8 +120,16 @@ QUEUE ADMINISTRATION
 view-queue
 ^^^^^^^^^^
 
+View information about a queue in the flux-accounting database.
+
+See :man1:`flux-account-view-queue` for more details.
+
 add-queue
 ^^^^^^^^^
+
+Add a queue to the flux-accounting database.
+
+See :man1:`flux-account-add-queue` for more details.
 
 delete-queue
 ^^^^^^^^^^^^
