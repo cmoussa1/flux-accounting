@@ -17,6 +17,7 @@ import math
 import time
 
 import fluxacct.accounting
+from fluxacct.accounting import sql_util
 
 
 def add_usage_columns_to_table(
@@ -71,7 +72,10 @@ def set_half_life_period_end(conn, priority_decay_half_life=None):
 
 
 def create_db(
-    filepath, priority_usage_reset_period=None, priority_decay_half_life=None
+    filepath,
+    priority_usage_reset_period=None,
+    priority_decay_half_life=None,
+    enable_wal_mode=False,
 ):
     db_dir = pathlib.PosixPath(filepath).parent
     db_dir.mkdir(parents=True, exist_ok=True)
@@ -86,6 +90,11 @@ def create_db(
 
     # set version number of database
     conn.execute("PRAGMA user_version = %d" % (fluxacct.accounting.DB_SCHEMA_VERSION))
+
+    if enable_wal_mode:
+        # enable Write-Ahead Logging (WAL) mode on the database since it is
+        # disabled by default
+        sql_util.toggle_wal_mode(conn)
 
     # Association Table
     logging.info("Creating association_table in DB...")

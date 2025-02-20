@@ -323,6 +323,12 @@ def add_create_db_arg(subparsers):
         help="contribution of historical usage in weeks on the composite usage value",
         metavar=("PRIORITY DECAY HALF LIFE"),
     )
+    subparser_create_db.add_argument(
+        "--enable-wal-mode",
+        action="store_const",
+        const=True,
+        help="enable Write-Ahead Logging (WAL) mode on the database",
+    )
 
 
 def add_add_bank_arg(subparsers):
@@ -851,7 +857,10 @@ def main():
     # to ONLY create the DB and then exit out successfully
     if args.func == "create_db":
         c.create_db(
-            path, args.priority_usage_reset_period, args.priority_decay_half_life
+            path,
+            args.priority_usage_reset_period,
+            args.priority_decay_half_life,
+            args.enable_wal_mode,
         )
         sys.exit(0)
 
