@@ -49,6 +49,7 @@ TESTSCRIPTS = \
 	t1047-issue564.t \
 	t1048-issue575.t \
 	t1049-issue580.t \
+	t1050-enable-wal-mode.t \
 	t5000-valgrind.t \
 	python/t1000-example.py \
 	python/t1001_db.py \
@@ -127,7 +128,7 @@ EXTRA_DIST= \
 	expected/sample_payloads/small_tie.json
 
 clean-local:
-	rm -fr trash-directory.* test-results .prove *.broker.log */*.broker.log *.output
+	rm -fr trash-directory.* test-results .prove *.broker.log */*.broker.log *.output *.db-shm *.db-wal
 
 AM_TESTS_ENVIRONMENT = \
 	export PYTHONPATH="$(abs_top_srcdir)/src/bindings/python/:$(abs_top_srcdir)/t/pycotap:$(PYTHON_SITE_PKG):$$PYTHONPATH";\
