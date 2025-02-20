@@ -753,6 +753,15 @@ def add_toggle_wal_mode_arg(subparsers):
     subparser_get_db_info.set_defaults(func="toggle_wal_mode")
 
 
+def add_get_db_info_arg(subparsers):
+    subparser_get_db_info = subparsers.add_parser(
+        "get-db-info",
+        help="get flux-accounting DB metadata",
+        formatter_class=flux.util.help_formatter(),
+    )
+    subparser_get_db_info.set_defaults(func="get_db_info")
+
+
 def add_arguments_to_parser(parser, subparsers):
     add_path_arg(parser)
     add_output_file_arg(parser)
@@ -781,6 +790,7 @@ def add_arguments_to_parser(parser, subparsers):
     add_pop_db_arg(subparsers)
     add_list_queues_arg(subparsers)
     add_toggle_wal_mode_arg(subparsers)
+    add_get_db_info_arg(subparsers)
 
 
 def set_db_location(args):
@@ -825,6 +835,7 @@ def select_accounting_function(args, output_file, parser):
         "pop_db": "accounting.pop_db",
         "list_queues": "accounting.list_queues",
         "toggle_wal_mode": "accounting.toggle_wal_mode",
+        "get_db_info": "accounting.get_db_info",
     }
 
     if args.func in func_map:

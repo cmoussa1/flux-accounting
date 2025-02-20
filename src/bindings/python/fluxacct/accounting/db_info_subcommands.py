@@ -97,3 +97,20 @@ def populate_db(conn, users=None, banks=None):
                     )
         except IOError as err:
             print(err)
+
+
+def get_db_info(conn):
+    """
+    Returns the user_version and journal_mode of the SQLite database.
+
+    Args:
+        conn: a sqlite3 Connection object to the database.
+    """
+    cur = conn.cursor()
+
+    # get the user_version
+    user_version = cur.execute("PRAGMA user_version").fetchone()[0]
+    # get WAL status
+    journal_mode = cur.execute("PRAGMA journal_mode").fetchone()[0]
+
+    return f"DB version: {user_version}\nJournal Mode: {journal_mode}"

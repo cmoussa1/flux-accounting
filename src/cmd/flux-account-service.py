@@ -96,6 +96,7 @@ class AccountingService:
             "view_project",
             "list_projects",
             "list_queues",
+            "get_db_info",
         ]
 
         privileged_endpoints = [
@@ -624,6 +625,22 @@ class AccountingService:
             val = sql_util.toggle_wal_mode(self.conn)
 
             payload = {"toggle_wal_mode": val}
+
+            handle.respond(msg, payload)
+        except KeyError as exc:
+            handle.respond_error(msg, 0, f"missing key in payload: {exc}")
+        except sqlite3.Error as exc:
+            handle.respond_error(msg, 0, f"a SQLite error occurred: {exc}")
+        except Exception as exc:
+            handle.respond_error(
+                msg, 0, f"a non-OSError exception was caught: {str(exc)}"
+            )
+
+    def get_db_info(self, handle, watcher, msg, arg):
+        try:
+            val = d.get_db_info(self.conn)
+
+            payload = {"get_db_info": val}
 
             handle.respond(msg, payload)
         except KeyError as exc:
