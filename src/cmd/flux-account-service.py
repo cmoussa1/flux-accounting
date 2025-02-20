@@ -26,6 +26,7 @@ from fluxacct.accounting import queue_subcommands as qu
 from fluxacct.accounting import project_subcommands as p
 from fluxacct.accounting import jobs_table_subcommands as j
 from fluxacct.accounting import db_info_subcommands as d
+from fluxacct.accounting import sql_util
 
 
 def establish_sqlite_connection(path):
@@ -114,6 +115,7 @@ class AccountingService:
             "export_db",
             "pop_db",
             "shutdown_service",
+            "toggle_wal_mode",
         ]
 
         for name in general_endpoints:
@@ -610,6 +612,22 @@ class AccountingService:
             handle.respond_error(msg, 0, f"missing key in payload: {exc}")
         except ValueError as exc:
             handle.respond_error(msg, 0, f"{exc}")
+        except sqlite3.Error as exc:
+            handle.respond_error(msg, 0, f"a SQLite error occurred: {exc}")
+        except Exception as exc:
+            handle.respond_error(
+                msg, 0, f"a non-OSError exception was caught: {str(exc)}"
+            )
+
+    def toggle_wal_mode(self, handle, watcher, msg, arg):
+        try:
+            val = sql_util.toggle_wal_mode(self.conn)
+
+            payload = {"toggle_wal_mode": val}
+
+            handle.respond(msg, payload)
+        except KeyError as exc:
+            handle.respond_error(msg, 0, f"missing key in payload: {exc}")
         except sqlite3.Error as exc:
             handle.respond_error(msg, 0, f"a SQLite error occurred: {exc}")
         except Exception as exc:

@@ -738,6 +738,15 @@ def add_list_queues_arg(subparsers):
     )
 
 
+def add_toggle_wal_mode_arg(subparsers):
+    subparser_get_db_info = subparsers.add_parser(
+        "toggle-wal-mode",
+        help="enable/disable Write-Ahead Logging (WAL) mode for flux-accounting DB",
+        formatter_class=flux.util.help_formatter(),
+    )
+    subparser_get_db_info.set_defaults(func="toggle_wal_mode")
+
+
 def add_arguments_to_parser(parser, subparsers):
     add_path_arg(parser)
     add_output_file_arg(parser)
@@ -765,6 +774,7 @@ def add_arguments_to_parser(parser, subparsers):
     add_export_db_arg(subparsers)
     add_pop_db_arg(subparsers)
     add_list_queues_arg(subparsers)
+    add_toggle_wal_mode_arg(subparsers)
 
 
 def set_db_location(args):
@@ -808,6 +818,7 @@ def select_accounting_function(args, output_file, parser):
         "export_db": "accounting.export_db",
         "pop_db": "accounting.pop_db",
         "list_queues": "accounting.list_queues",
+        "toggle_wal_mode": "accounting.toggle_wal_mode",
     }
 
     if args.func in func_map:
