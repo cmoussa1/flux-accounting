@@ -137,6 +137,25 @@ test_expect_success 'call list-queues and customize output' '
 	grep "queue_2  | 0" list_queues_table.out
 '
 
+test_expect_success 'add queues from a TOML file' '
+	mkdir -p conf.d &&
+	cat >conf.d/queues.toml <<-EOT &&
+	[queues.black]
+	policy.limits.duration = "30m"
+
+	[queues.white]
+	policy.limits.duration = "8h"
+
+	[queues.orange]
+	policy.limits.duration = "1d"
+	EOT
+	flux account load-queues conf.d/queues.toml &&
+	flux account list-queues --fields=queue,priority --table > queues_from_toml.out &&
+	grep "black    | 0" queues_from_toml.out &&
+	grep "white    | 0" queues_from_toml.out &&
+	grep "orange   | 0" queues_from_toml.out
+'
+
 test_expect_success 'remove flux-accounting DB' '
 	rm $(pwd)/FluxAccountingTest.db
 '
