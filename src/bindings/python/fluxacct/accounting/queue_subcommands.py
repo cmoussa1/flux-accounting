@@ -10,10 +10,27 @@
 # SPDX-License-Identifier: LGPL-3.0
 ###############################################################
 import sqlite3
+import toml
 
 import fluxacct.accounting
 from fluxacct.accounting import formatter as fmt
 from fluxacct.accounting import sql_util as sql
+
+
+def load_queues(conn, toml_file):
+    """
+    Load queue names from a TOML file and add them to queue_table.
+
+    Args:
+        conn: a sqlite3 Connection object.
+        toml_file: a path to a TOML file containing queues.* tables.
+    """
+    with open(toml_file, "r") as toml_data:
+        queue_data = toml.load(toml_data)
+
+    queues = queue_data.get("queues")
+    for queue in queues:
+        add_queue(conn, queue)
 
 
 def view_queue(conn, queue, parsable=False):

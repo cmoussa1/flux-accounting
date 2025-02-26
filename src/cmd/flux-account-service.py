@@ -113,6 +113,7 @@ class AccountingService:
             "scrub_old_jobs",
             "export_db",
             "pop_db",
+            "load_queues",
             "shutdown_service",
         ]
 
@@ -610,6 +611,25 @@ class AccountingService:
             handle.respond_error(msg, 0, f"missing key in payload: {exc}")
         except ValueError as exc:
             handle.respond_error(msg, 0, f"{exc}")
+        except sqlite3.Error as exc:
+            handle.respond_error(msg, 0, f"a SQLite error occurred: {exc}")
+        except Exception as exc:
+            handle.respond_error(
+                msg, 0, f"a non-OSError exception was caught: {str(exc)}"
+            )
+
+    def load_queues(self, handle, watcher, msg, arg):
+        try:
+            val = qu.load_queues(
+                self.conn,
+                msg.payload["toml-file"],
+            )
+
+            payload = {"load_queues": val}
+
+            handle.respond(msg, payload)
+        except KeyError as exc:
+            handle.respond_error(msg, 0, f"missing key in payload: {exc}")
         except sqlite3.Error as exc:
             handle.respond_error(msg, 0, f"a SQLite error occurred: {exc}")
         except Exception as exc:
