@@ -79,6 +79,12 @@ public:
     int priority;
 };
 
+class Bank {
+public:
+    std::string name;               // name of the bank
+    std::string max_preempt_after;  // max preemptible-after
+};
+
 // get an Association object that points to user/bank in the users map;
 // return nullptr on failure
 Association* get_association (int userid,
