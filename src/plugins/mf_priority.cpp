@@ -49,6 +49,7 @@ extern "C" {
 
 std::map<int, std::map<std::string, Association>> users;
 std::map<std::string, Queue> queues;
+std::map<std::string, Bank> banks;
 std::map<int, std::string> users_def_bank;
 std::vector<std::string> projects;
 std::map<std::string, int> priority_weights;
@@ -558,6 +559,61 @@ static void rec_proj_cb (flux_t *h,
     if (flux_respond (h, msg, NULL) < 0)
         flux_log_error (h, "flux_respond");
 
+    return;
+error:
+    flux_respond_error (h, msg, errno, flux_msg_last_error (msg));
+}
+
+
+/*
+ * Unpack a payload from an external bulk update service and place it in the
+ * "banks" map.
+ */
+static void rec_bank_cb (flux_t *h,
+                         flux_msg_handler_t *mh,
+                         const flux_msg_t *msg,
+                         void *arg)
+{
+    char *bank_name = NULL;
+    char *max_preempt_after = NULL;
+    json_t *data, *jtemp = NULL;
+    json_error_t error;
+    int num_data = 0;
+    size_t index;
+    json_t *el;
+
+    if (flux_request_unpack (msg, NULL, "{s:o}", "data", &data) < 0) {
+        flux_log_error (h, "failed to unpack custom_priority.trigger msg");
+        goto error;
+    }
+
+    if (!data || !json_is_array (data)) {
+        flux_log (h, LOG_ERR, "mf_priority: invalid bank info payload");
+        goto error;
+    }
+    num_data = json_array_size (data);
+
+    // clear the banks map
+    banks.clear ();
+
+    for (int i = 0; i < num_data; i++) {
+        json_t *el = json_array_get(data, i);
+
+        if (json_unpack_ex (el, &error, 0,
+                            "{s:s, s:s}",
+                            "bank", &bank_name,
+                            "max_preempt_after", &max_preempt_after) < 0)
+            flux_log (h, LOG_ERR, "mf_priority unpack: %s", error.text);
+
+        Bank *b;
+        b = &banks[bank_name];
+
+        b->name = bank_name;
+        b->max_preempt_after = max_preempt_after;
+    }
+
+    if (flux_respond (h, msg, NULL) < 0)
+        flux_log_error (h, "flux_respond");
     return;
 error:
     flux_respond_error (h, msg, errno, flux_msg_last_error (msg));
@@ -1407,6 +1463,8 @@ extern "C" int flux_plugin_init (flux_plugin_t *p)
         || flux_jobtap_service_register (p, "reprioritize", reprior_cb, p) < 0
         || flux_jobtap_service_register (p, "rec_q_update", rec_q_cb, p) < 0
         || flux_jobtap_service_register (p, "rec_proj_update", rec_proj_cb, p)
+        < 0
+        || flux_jobtap_service_register (p, "rec_bank_update", rec_bank_cb, p)
         < 0)
         return -1;
 
