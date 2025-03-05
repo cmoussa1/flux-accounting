@@ -36,6 +36,8 @@ extern "C" {
 #include "jj.hpp"
 // custom Job class file
 #include "job.hpp"
+// custom FSD parsing file
+#include "fsd.hpp"
 
 // the plugin does not know about the association who submitted a job and will
 // assign default values to the association until it receives information from
@@ -165,6 +167,30 @@ static int update_jobspec_project (flux_plugin_t *p, int userid, char *bank)
                                              "{s:s}",
                                              "attributes.system.project",
                                              project.c_str ()) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
+
+/*
+ * Update the jobspec with a "preemptible-after" attribute.
+ */
+static int update_jobspec_preempt (flux_plugin_t *p,
+                                   double max_preempt_after)
+{
+    char buf[64];
+    // convert floating-point duration to Flux Standard Duration (FSD)
+    if (fsd_format_duration (buf, sizeof (buf), max_preempt_after) < 0)
+        return -1;
+
+    if (*buf) {
+        // post jobspec-update event
+        if (flux_jobtap_jobspec_update_pack (p,
+                                             "{s:s}",
+                                             "attributes.system.preemptible-after",
+                                             buf) < 0)
             return -1;
     }
 
@@ -895,17 +921,21 @@ static int new_cb (flux_plugin_t *p,
     char *bank = NULL;
     char *queue = NULL;
     const char *project = NULL;
+    const char *preemptible_after = NULL;
     int max_run_jobs, cur_active_jobs, max_active_jobs = 0;
+    double preempt_duration = 0.0;
+    std::string max_preempt_after;
     Association *b;
 
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:i, s{s{s{s?s, s?s, s?s}}}}",
+                                "{s:i, s{s{s{s?s, s?s, s?s, s?s}}}}",
                                 "userid", &userid,
                                 "jobspec", "attributes", "system",
                                 "bank", &bank, "queue", &queue,
-                                "project", &project) < 0) {
+                                "project", &project,
+                                "preemptible-after", &preemptible_after) < 0) {
         return flux_jobtap_reject_job (p, args, "unable to unpack bank arg");
     }
 
@@ -971,6 +1001,41 @@ static int new_cb (flux_plugin_t *p,
                                          "mf_priority", 0,
                                          "job.new: failed to update jobspec "
                                          "with project name");
+            return -1;
+        }
+    }
+
+    // locate bank information associated with this job
+    auto it = banks.find (b->bank_name);
+    if (it != banks.end ())
+        max_preempt_after = it->second.max_preempt_after;
+    else
+        // we can't find a max_preempt_after attribute for this bank
+        max_preempt_after = "None";
+
+    if (preemptible_after != nullptr) {
+        // the association set a preemptible-after attribute on their job;
+        // convert the attribute (in FSD) to a number of seconds
+        int result = fsd_parse_duration (preemptible_after, &preempt_duration);
+        if (max_preempt_after != "None" &&
+            preempt_duration > std::stod (max_preempt_after)) {
+            // the association set a preemptible-after greater than the bank's
+            // max_preempt_after; set it to max_preempt_after
+            preempt_duration = std::stod (max_preempt_after);
+        }
+    } else {
+        // the association did not set a preemptible-after attribute; check if
+        // the bank this job is submitted under has a max_preempt_after
+        // attribute, and if so, set it
+        if (max_preempt_after != "None")
+            preempt_duration = std::stod (max_preempt_after);
+    }
+    if (max_preempt_after != "None") {
+        if (update_jobspec_preempt (p, preempt_duration) < 0) {
+            flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
+                                         "mf_priority", 0,
+                                         "job.new: failed to update jobspec "
+                                         "with preemptible-after attribute");
             return -1;
         }
     }
