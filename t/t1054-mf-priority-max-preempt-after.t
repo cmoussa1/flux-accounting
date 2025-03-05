@@ -31,8 +31,8 @@ test_expect_success 'start flux-accounting service' '
 
 test_expect_success 'add banks to the DB' '
 	flux account add-bank root 1 &&
-	flux account add-bank --parent-bank=root A 1 --max-preempt-after=60s &&
-	flux account add-bank --parent-bank=root B 1 --max-preempt-after=1h &&
+	flux account add-bank --parent-bank=root A 1 --max-preempt-after=1h &&
+	flux account add-bank --parent-bank=root B 1 --max-preempt-after=59s &&
 	flux account add-bank --parent-bank=root C 1
 '
 
@@ -44,6 +44,66 @@ test_expect_success 'add an association to the DB' '
 
 test_expect_success 'send flux-accounting DB information to the plugin' '
 	flux account-priority-update -p ${DB_PATH}
+'
+
+test_expect_success 'submit a job where --preemptible-after < max_preempt_after' '
+	job=$(flux python ${SUBMIT_AS} 5001 -S preemptible-after=5m sleep 60) &&
+	flux job wait-event -vt 5 ${job} alloc &&
+	flux cancel ${job} &&
+	flux job info ${job} jobspec > jobspec.out &&
+	grep "\"preemptible-after\": \"5m\"" jobspec.out
+'
+
+test_expect_success 'submit a job where --preemptible-after == max_preempt_after' '
+	job=$(flux python ${SUBMIT_AS} 5001 -S preemptible-after=1h sleep 60) &&
+	flux job wait-event -vt 5 ${job} alloc &&
+	flux cancel ${job} &&
+	flux job info ${job} jobspec > jobspec.out &&
+	grep "\"preemptible-after\": \"1h\"" jobspec.out
+'
+
+# In the case where --preemptible-after is greater than max_preempt_after,
+# update this attribute to max_preempt_after
+test_expect_success 'submit a job where --preemptible-after > max_preempt_after' '
+	job=$(flux python ${SUBMIT_AS} 5001 -S preemptible-after=8h sleep 60) &&
+	flux job wait-event -vt 5 ${job} alloc &&
+	flux cancel ${job} &&
+	flux job info ${job} jobspec > jobspec.out &&
+	cat jobspec.out &&
+	grep "\"preemptible-after\": \"1h\"" jobspec.out
+'
+
+test_expect_success 'submit a job to secondary bank where --preemptible-after < max_preempt_after' '
+	job=$(flux python ${SUBMIT_AS} 5001 -S bank=B -S preemptible-after=5s sleep 60) &&
+	flux job wait-event -vt 5 ${job} alloc &&
+	flux cancel ${job} &&
+	flux job info ${job} jobspec > jobspec.out &&
+	grep "\"preemptible-after\": \"5s\"" jobspec.out
+'
+
+test_expect_success 'submit a job to secondary bank where --preemptible-after == max_preempt_after' '
+	job=$(flux python ${SUBMIT_AS} 5001 -S bank=B -S preemptible-after=59s sleep 60) &&
+	flux job wait-event -vt 5 ${job} alloc &&
+	flux cancel ${job} &&
+	flux job info ${job} jobspec > jobspec.out &&
+	grep "\"preemptible-after\": \"59s\"" jobspec.out
+'
+
+test_expect_success 'submit a job to secondary bank where --preemptible-after > max_preempt_after' '
+	job=$(flux python ${SUBMIT_AS} 5001 -S bank=B -S preemptible-after=5m sleep 60) &&
+	flux job wait-event -vt 5 ${job} alloc &&
+	flux cancel ${job} &&
+	flux job info ${job} jobspec > jobspec.out &&
+	grep "\"preemptible-after\": \"59s\"" jobspec.out
+'
+
+test_expect_success 'submit a job to a bank with no max_preempt_after' '
+	job=$(flux python ${SUBMIT_AS} 5001 -S bank=C sleep 60) &&
+	flux job wait-event -vt 5 ${job} alloc &&
+	flux cancel ${job} &&
+	flux job info ${job} jobspec > jobspec.out &&
+	cat jobspec.out &&
+	test_must_fail grep "\"preemptible-after\"" jobspec.out
 '
 
 test_expect_success 'shut down flux-accounting service' '
