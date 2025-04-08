@@ -47,6 +47,10 @@ extern "C" {
 #define DEFAULT_QUEUE_WEIGHT 10000
 #define DEFAULT_AGE_WEIGHT 1000
 
+// dependency names for flux-accounting dependencies
+#define D_QUEUE_MRJ "max-run-jobs-queue"
+#define D_ASSOC_MRJ "max-running-jobs-user-limit"
+
 std::map<int, std::map<std::string, Association>> users;
 std::map<std::string, Queue> queues;
 std::map<int, std::string> users_def_bank;
@@ -872,12 +876,16 @@ static int depend_cb (flux_plugin_t *p,
     Association *b;
     char *queue = NULL;
     std::string dependency;
+    json_t *jobspec = NULL;
+    Job job;
+    std::string queue_str;
 
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:i, s:I, s{s{s{s?s}}}}",
+                                "{s:i, s:I, s:o, s{s{s{s?s}}}}",
                                 "userid", &userid, "id", &id,
+                                "jobspec", &jobspec,
                                 "jobspec", "attributes", "system",
                                 "queue", &queue) < 0) {
         flux_log (h,
@@ -900,39 +908,43 @@ static int depend_cb (flux_plugin_t *p,
         return -1;
     }
 
-    if (queue != NULL) {
-        // safely assign "queue" to an std::string
-        std::string value (queue);
-        // fetch max number of running jobs in this queue
-        int queue_max_run_jobs = max_run_jobs_per_queue (queues, queue);
-        if (queue_max_run_jobs < 0) {
-            // can't find a max_run_jobs limit for this queue because it
-            // might not be defined in the flux-accounting DB, so just set
-            // it to a large number
-            queue_max_run_jobs = std::numeric_limits<int>::max ();
-        }
+    if (jobspec == NULL) {
+        flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB, "mf_priority",
+                                     0, "job.state.depend: failed to unpack " \
+                                     "jobspec");
+        return -1;
+    } else {
+        if (queue != NULL)
+            queue_str = std::string (queue);
+        else
+            // a queue could not be found, set it to ""
+            queue_str = "";
 
-        // look up the association's current number of running jobs;
-        // if queue cannot be found, an entry in the Association object will be
-        // initialized with a current running jobs count of 0
-        int assoc_cur_run_jobs = b->queue_usage[queue];
-        if (assoc_cur_run_jobs >= queue_max_run_jobs) {
+        // look up the association's current number of running jobs in this
+        // queue; if it cannot be found in the map, an entry in the Association
+        // object will be initialized with a current running jobs count of 0
+        if (b->queue_usage[queue_str] >= queue_max_run_jobs (queues, queue_str)) {
             // association is already at their max number of running jobs
             // in this queue; add a dependency
-            dependency = "max-run-jobs-queue";
-            if (flux_jobtap_dependency_add (p, id, dependency.c_str ()) < 0)
+            if (flux_jobtap_dependency_add (p, id, D_QUEUE_MRJ) < 0)
                 goto error;
-            b->queue_held_jobs[queue].push_back (id);
+            job.deps.push_back (D_QUEUE_MRJ);
         }
-    }
 
-    if ((b->max_run_jobs > 0) && (b->cur_run_jobs == b->max_run_jobs)) {
-        // association is already at their max running jobs count; add a
-        // dependency to hold the job until an already running one finishes
-        dependency = "max-running-jobs-user-limit";
-        if (flux_jobtap_dependency_add (p, id, dependency.c_str ()) < 0)
-            goto error;
-        b->held_jobs.push_back (id);
+        if ((b->max_run_jobs > 0) && (b->cur_run_jobs == b->max_run_jobs)) {
+            // association is already at their max running jobs count; add a
+            // dependency to hold the job until an already running one finishes
+            if (flux_jobtap_dependency_add (p, id, D_ASSOC_MRJ) < 0)
+                goto error;
+            job.deps.push_back (D_ASSOC_MRJ);
+        }
+
+        if (job.deps.size () > 0) {
+            // job has at least one dependency; store it in Association object
+            job.id = id;
+            job.queue = queue_str;
+            b->hj.emplace (id, job);
+        }
     }
 
     return 0;
@@ -1228,6 +1240,7 @@ static int inactive_cb (flux_plugin_t *p,
     json_t *jobspec = NULL;
     char *queue = NULL;
     std::string dependency;
+    std::string queue_str;
 
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
@@ -1285,47 +1298,50 @@ static int inactive_cb (flux_plugin_t *p,
         }
     }
 
-    if (queue != NULL) {
-        // safely assign "queue" to an std::string
-        std::string value (queue);
-        if (b->queue_usage[queue] > 0) {
-            // decrement the counter of running jobs the association in queue
-            b->queue_usage[queue]--;
+    if (queue != NULL)
+        queue_str = std::string (queue);
+    else
+        // a queue could not be found, set it to ""
+        queue_str = "";
 
-            // fetch max number of running jobs in queue
-            int queue_max_run_jobs = max_run_jobs_per_queue (queues, queue);
-            if (queue_max_run_jobs < 0) {
-                // can't find a max_run_jobs limit for this queue because it
-                // might not be defined in the flux-accounting DB, so just set
-                // it to a large number
-                queue_max_run_jobs = std::numeric_limits<int>::max ();
+    if (b->queue_usage[queue_str] > 0)
+        // decrement num of running jobs the association has in queue
+        b->queue_usage[queue_str]--;
+
+    // begin checking flux-accounting dependencies
+    if (b->hj.size () > 0 && b->cur_run_jobs < b->max_run_jobs) {
+        // the associaion has at least one held job and is now under their max
+        // running jobs limit; begin looping through held jobs and see if
+        // one satisfies the requirements to be released
+        for (const auto &[key, held_job] : b->hj) {
+            if (under_queue_max_run_jobs (*b, queues, held_job.queue)) {
+                // the association's held job can now run under the queue they
+                // specified, so remove the per-queue dependencies
+                if (contains_dep (b->hj[held_job.id], D_QUEUE_MRJ)) {
+                    if (flux_jobtap_dependency_remove (p,
+                                                       held_job.id,
+                                                       D_QUEUE_MRJ) < 0)
+                        goto error;
+                    remove_dep (b->hj[held_job.id], D_QUEUE_MRJ);
+                }
             }
 
-            if ((b->queue_held_jobs[queue].size () > 0) &&
-                (b->queue_usage[queue] < queue_max_run_jobs)) {
-                // association has at least one held job in queue;
-                // remove the dependency from the first held job
-                dependency = "max-run-jobs-queue";
-                long int id = b->queue_held_jobs[queue].front ();
-                if (flux_jobtap_dependency_remove (p,
-                                                   id,
-                                                   dependency.c_str ()) < 0)
-                    goto error;
-                b->queue_held_jobs[queue].erase (
-                    b->queue_held_jobs[queue].begin ()
-                );
+            if (only_assoc_max_run_jobs (*b, held_job.id, D_ASSOC_MRJ)) {
+                // only dependency left is the association's max-running-jobs
+                // limit; since we know the association is under this limit,
+                // remove it
+                if (contains_dep (b->hj[held_job.id], D_ASSOC_MRJ)) {
+                    if (flux_jobtap_dependency_remove (p, held_job.id, D_ASSOC_MRJ) < 0)
+                        goto error;
+                    remove_dep (b->hj[held_job.id], D_ASSOC_MRJ);
+                    // a job has met all requirements to run; remove the
+                    // Job object from the internal map
+                    b->hj.erase (held_job.id);
+                    // break from loop
+                    break;
+                }
             }
         }
-    }
-
-    // if the user/bank combo has any currently held jobs and the user is now
-    // under their max jobs limit, remove the dependency from first held job
-    if ((b->held_jobs.size () > 0) && (b->cur_run_jobs < b->max_run_jobs)) {
-        long int jobid = b->held_jobs.front ();
-        dependency = "max-running-jobs-user-limit";
-        if (flux_jobtap_dependency_remove (p, jobid, dependency.c_str ()) < 0)
-            goto error;
-        b->held_jobs.erase (b->held_jobs.begin ());
     }
 
     return 0;
