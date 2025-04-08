@@ -263,3 +263,22 @@ int max_run_jobs_per_queue (const std::map<std::string, Queue> &queues,
 
     return it->second.max_running_jobs;
 }
+
+
+bool under_queue_max_run_jobs (Association &a,
+                               std::map<std::string, Queue> &queues,
+                               const std::string &queue)
+{
+    if (a.queue_usage[queue] < queue_max_run_jobs (queues, queue))
+        return true;
+    return false;
+}
+
+bool only_assoc_max_run_jobs (Association &a,
+                              const long int id,
+                              const std::string &dependency)
+{
+    if (a.hj[id].deps.size () == 1 && a.hj[id].deps[0] == dependency)
+        return true;
+    return false;
+}

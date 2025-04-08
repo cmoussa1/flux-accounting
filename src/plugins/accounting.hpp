@@ -28,6 +28,7 @@ extern "C" {
 #include <sstream>
 #include <algorithm>
 #include <unordered_map>
+#include <cmath>
 
 #include "job.hpp"
 
@@ -123,7 +124,15 @@ int get_project_info (const char *project,
                       std::vector<std::string> projects);
 
 // fetch the max number of running jobs a queue can have per-association
-int max_run_jobs_per_queue (const std::map<std::string, Queue> &queues,
-                            const std::string &queue);
+int queue_max_run_jobs (const std::map<std::string, Queue> &queues,
+                        const std::string &queue);
+
+bool under_queue_max_run_jobs (Association &a,
+                               std::map<std::string, Queue> &queues,
+                               const std::string &queue);
+
+bool only_assoc_max_run_jobs (Association &a,
+                              const long int id,
+                              const std::string &dependency);
 
 #endif // ACCOUNTING_H
