@@ -234,12 +234,14 @@ int get_project_info (const char *project,
 }
 
 
-int max_run_jobs_per_queue (const std::map<std::string, Queue> &queues,
-                            const std::string &queue)
+int queue_max_run_jobs (const std::map<std::string, Queue> &queues,
+                        const std::string &queue)
 {
     auto it = queues.find (queue);
     if (it == queues.end ())
-        return -1;
+        // can't find a max_run_jobs limit for this queue because it might not
+        // be defined in flux-accounting, so just set it to a large number
+        return std::numeric_limits<int>::max ();
 
     return it->second.max_running_jobs;
 }
