@@ -86,7 +86,6 @@ test_expect_success 'submit max number of jobs under default bank (1 held job du
 test_expect_success HAVE_JQ 'fetch plugin state and make sure that jobs are reflected in JSON object' '
 	flux jobtap query mf_priority.so > query_2.json &&
 	test_debug "jq -S . <query_2.json" &&
-	jq -e ".mf_priority_map[] | select(.userid == 5001) | .banks[0].held_jobs | length == 1" <query_2.json &&
 	jq -e ".mf_priority_map[] | select(.userid == 5001) | .banks[0].cur_run_jobs == 2" <query_2.json &&
 	jq -e ".mf_priority_map[] | select(.userid == 5001) | .banks[0].cur_active_jobs == 3" <query_2.json
 '

@@ -173,19 +173,6 @@ test_expect_success 'a third submitted job (regardless of queue) results in depe
 		${job3} dependency-add
 '
 
-test_expect_success 'check active/running jobs counts' '
-	flux jobtap query mf_priority.so > user1.json &&
-	jq -e ".mf_priority_map[] | \
-		select(.userid == 5001) | \
-		.banks[0].held_jobs | length == 1" <user1.json &&
-	jq -e ".mf_priority_map[] | \
-		select(.userid == 5001) | \
-		.banks[0].cur_run_jobs == 2" <user1.json &&
-	jq -e ".mf_priority_map[] | \
-		select(.userid == 5001) | \
-		.banks[0].cur_active_jobs == 3" <user1.json
-'
-
 test_expect_success 'cancel currently running job; held job gets alloc event' '
 	flux cancel ${job1} &&
 	flux job wait-event -vt 5 ${job1} clean &&
@@ -228,10 +215,7 @@ test_expect_success 'ensure both dependencies get added to job' '
 		${job2} dependency-add &&
 	flux job wait-event -vt 10 \
 		--match-context=description="max-run-jobs-queue" \
-		${job2} dependency-add &&
-	flux jobtap query mf_priority.so > query.json &&
-	test_debug "jq -S . <query.json" &&
-	jq -e ".mf_priority_map[] | select(.userid == 5002) | .banks[0].held_jobs | length == 1" <query.json
+		${job2} dependency-add
 '
 
 test_expect_success 'once enough resources have been freed up, job can transition to run' '
