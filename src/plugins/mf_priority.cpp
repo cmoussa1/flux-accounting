@@ -50,6 +50,7 @@ extern "C" {
 // dependency names for flux-accounting dependencies
 #define D_QUEUE_MRJ "max-run-jobs-queue"
 #define D_ASSOC_MRJ "max-running-jobs-user-limit"
+#define D_ASSOC_M_RSRC "max-resource-user-limit"
 
 std::map<int, std::map<std::string, Association>> users;
 std::map<std::string, Queue> queues;
@@ -915,6 +916,16 @@ static int depend_cb (flux_plugin_t *p,
                                      "jobspec");
         return -1;
     } else {
+        // count resources for the Job
+        if (job.count_resources (jobspec) < 0) {
+            flux_jobtap_raise_exception (p,
+                                         FLUX_JOBTAP_CURRENT_JOB,
+                                         "mf_priority",
+                                         0,
+                                         "job.state.depend: failed to " \
+                                         "unpack jobspec");
+            return -1;
+        }
         // if a queue cannot be found, just set it to ""
         queue_str = queue ? queue : "";
         // look up the association's current number of running jobs in this
@@ -933,6 +944,15 @@ static int depend_cb (flux_plugin_t *p,
             if (flux_jobtap_dependency_add (p, id, D_ASSOC_MRJ) < 0)
                 goto error;
             job.add_dep (D_ASSOC_MRJ);
+        }
+        if ((b->max_nodes > 0 && b->max_cores > 0) &&
+            (((b->cur_nodes + job.nnodes) > b->max_nodes) ||
+             ((b->cur_cores + job.ncores) > b->max_cores))) {
+            // the job would put the association over either their max cores or
+            // max nodes limit(s); add a dependency on the job
+            if (flux_jobtap_dependency_add (p, id, D_ASSOC_M_RSRC) < 0)
+                goto error;
+            job.add_dep (D_ASSOC_M_RSRC);
         }
         if (job.deps.size () > 0) {
             // Job has at least one dependency; store it in Association object
@@ -1329,6 +1349,18 @@ static int inactive_cb (flux_plugin_t *p,
                                                       D_ASSOC_MRJ) < 0)
                         goto error;
                     held_job.remove_dep(D_ASSOC_MRJ);
+                }
+            }
+            if (((b->cur_nodes + held_job.nnodes) <= b->max_nodes) &&
+                ((b->cur_cores + held_job.ncores) <= b->max_cores)) {
+                // this job would stay under the max resources limit for the
+                // association, so remove the per-association dependency
+                if (held_job.contains_dep (D_ASSOC_M_RSRC)) {
+                    if (flux_jobtap_dependency_remove (p,
+                                                       held_job.id,
+                                                       D_ASSOC_M_RSRC) < 0)
+                        goto error;
+                    held_job.remove_dep (D_ASSOC_M_RSRC);
                 }
             }
             if (held_job.deps.size () == 0) {
