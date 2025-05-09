@@ -176,19 +176,43 @@ int data_writer_db_t::write_acct_info (
         return -1;
     }
 
+    // begin transaction
+    rc = sqlite3_exec (DB, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
+    if (rc != SQLITE_OK) {
+        m_err_msg = "Failed to begin transaction: " +
+                    std::string (sqlite3_errmsg (DB));
+        sqlite3_close(DB);
+        errno = EIO;
+        return -1;
+    }
+
     ud = "UPDATE association_table SET fairshare=? WHERE username=? AND bank=?";
 
     c_ud = compile_stmt (DB, ud);
-    if (c_ud == nullptr)
+    if (c_ud == nullptr) {
+        sqlite3_exec (DB, "ROLLBACK;", nullptr, nullptr, nullptr);
+        sqlite3_close (DB);
         return -1;
+    }
 
     rc = update_fairshare_values (DB, c_ud, node);
 
     // destroy prepared statement
     rc = sqlite3_finalize (c_ud);
     if (rc != SQLITE_OK) {
-        m_err_msg = "Failed to delete prepared statement";
+        m_err_msg += "Failed during update_fairshare_values ()\n";
+        sqlite3_exec (DB, "ROLLBACK;", nullptr, nullptr, nullptr);
+        sqlite3_close (DB);
+        return rc;
+    }
 
+    // Commit transaction
+    rc = sqlite3_exec (DB, "COMMIT;", nullptr, nullptr, nullptr);
+    if (rc != SQLITE_OK) {
+        m_err_msg = "Failed to commit transaction: " +
+                    std::string(sqlite3_errmsg(DB));
+        sqlite3_exec (DB, "ROLLBACK;", nullptr, nullptr, nullptr);
+        sqlite3_close (DB);
         return rc;
     }
 
