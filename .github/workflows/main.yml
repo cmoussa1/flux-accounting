@@ -115,18 +115,40 @@ jobs:
         pip3 install --upgrade pip ;
         pip3 install --upgrade --force-reinstall coverage ;
 
-    - name: docker-run-checks
-      env: ${{matrix.env}}
-      run: ${{matrix.command}}
-
-    - name: coverage report
-      if: success() && matrix.coverage
+    - name: docker-run-checks with Python coverage
+      if: matrix.coverage
       env:
+        PYTHONPATH: ${{ github.workspace }}/bindings/python/fluxacct
+        COVERAGE_PROCESS_START: ${{ github.workspace }}/.coveragerc
         DOCKER_REPO:
+      run: |
+        echo "[run]" > .coveragerc
+        echo "branch = True" >> .coveragerc
+        echo "parallel = True" >> .coveragerc
+        echo "source = bindings/python/fluxacct/accounting" >> .coveragerc
+
+        # Create a sitecustomize module that starts coverage automatically
+        mkdir -p sitecustomize
+        echo "import coverage; coverage.process_startup()" > sitecustomize/sitecustomize.py
+        export PYTHONPATH=$PYTHONPATH:$(pwd)/sitecustomize
+
+        # Run tests
+        ${{matrix.command}}
+
+    - name: Generate and upload coverage report
+      if: success() && matrix.coverage
+      run: |
+        coverage combine
+        coverage xml -o coverage.xml
+      # Separate upload step
+    - name: Upload to Codecov
+      if: success() && matrix.coverage
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        flags: ${{matrix.coverage_flags}}
+        files: coverage.xml
+        flags: ${{ matrix.coverage_flags }}
+        verbose: true
 
     - name: annotate errors
       if: failure() || cancelled()
