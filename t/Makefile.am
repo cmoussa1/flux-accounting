@@ -57,6 +57,7 @@ TESTSCRIPTS = \
 	t1052-mf-priority-queue-limits.t \
 	t1053-issue631.t \
 	t1054-mf-priority-bank-priorities.t \
+	t1055-calc-job-priority.t \
 	t5000-valgrind.t \
 	python/t1000-example.py \
 	python/t1001_db.py \
@@ -68,7 +69,8 @@ TESTSCRIPTS = \
 	python/t1007_formatter.py \
 	python/t1008_banks_output.py \
 	python/t1009_users_output.py \
-	python/t1010_issue631.py
+	python/t1010_issue631.py \
+	python/t1011_predict_job_priority.py
 
 dist_check_SCRIPTS = \
 	$(TESTSCRIPTS) \
