@@ -918,6 +918,30 @@ def add_list_queues_arg(subparsers):
     )
 
 
+def add_calc_job_priority_arg(subparsers):
+    subparser_calc_job_priority = subparsers.add_parser(
+        "calc-job-priority",
+        help="calculate the priority for a job for a given associaion",
+        formatter_class=flux.util.help_formatter(),
+    )
+    subparser_calc_job_priority.set_defaults(func="calc_job_priority")
+    subparser_calc_job_priority.add_argument(
+        "username", help="the username of the association", metavar="USERNAME"
+    )
+    subparser_calc_job_priority.add_argument(
+        "--bank",
+        help="the bank name of the association",
+        default=None,
+        metavar="BANK",
+    )
+    subparser_calc_job_priority.add_argument(
+        "--queue",
+        help="the name of the queue the job is submitted to",
+        default=None,
+        metavar="QUEUE",
+    )
+
+
 def add_arguments_to_parser(parser, subparsers):
     add_path_arg(parser)
     add_output_file_arg(parser)
@@ -946,6 +970,7 @@ def add_arguments_to_parser(parser, subparsers):
     add_export_db_arg(subparsers)
     add_pop_db_arg(subparsers)
     add_list_queues_arg(subparsers)
+    add_calc_job_priority_arg(subparsers)
 
 
 def set_db_location(args):
@@ -990,6 +1015,7 @@ def select_accounting_function(args, output_file, parser):
         "export_db": "accounting.export_db",
         "pop_db": "accounting.pop_db",
         "list_queues": "accounting.list_queues",
+        "calc_job_priority": "accounting.calc_job_priority",
     }
 
     if args.func in func_map:

@@ -96,6 +96,7 @@ class AccountingService:
             "list_projects",
             "list_queues",
             "list_users",
+            "calc_job_priority",
         ]
 
         privileged_endpoints = [
@@ -591,6 +592,27 @@ class AccountingService:
             handle.respond_error(msg, 0, f"list-queues: missing key in payload: {exc}")
         except Exception as exc:
             handle.respond_error(msg, 0, f"list-queues: {type(exc).__name__}: {exc}")
+
+    def calc_job_priority(self, handle, watcher, msg, arg):
+        try:
+            val = u.calc_job_priority(
+                self.conn,
+                username=msg.payload["username"],
+                bank=msg.payload.get("bank"),
+                queue=msg.payload.get("queue"),
+            )
+
+            payload = {"calc_job_priority": val}
+
+            handle.respond(msg, payload)
+        except KeyError as exc:
+            handle.respond_error(
+                msg, 0, f"calc-job-priority: missing key in payload: {exc}"
+            )
+        except Exception as exc:
+            handle.respond_error(
+                msg, 0, f"calc-job-priority: {type(exc).__name__}: {exc}"
+            )
 
 
 LOGGER = logging.getLogger("flux-uri")

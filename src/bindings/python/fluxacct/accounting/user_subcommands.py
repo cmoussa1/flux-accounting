@@ -582,3 +582,94 @@ def edit_user(conn, username, bank=None, **kwargs):
     conn.commit()
 
     return 0
+
+
+def calc_job_priority(conn, username, bank=None, queue=None):
+    """
+    Return a detailed description of how a job's priority is calculated for a given user.
+
+    Args:
+        conn: the SQLite Connection object
+        username: the username of the association
+        bank: the bank of the association
+        queue: the queue the job is being submitted under
+        toml_config_file: a path to a TOML config file where the weights for the various
+            priority factors are defined.
+    """
+    cur = conn.cursor()
+    # default factor weights for the priority calculation for a job
+    fairshare_weight = 100000
+    queue_weight = 10000
+    bank_weight = 0
+    # SELECT statements used to query flux-accounting DB
+    select_fshare = (
+        "SELECT fairshare FROM association_table WHERE username=? AND bank=?"
+    )
+    select_bank_priority = "SELECT priority FROM bank_table WHERE bank=?"
+    select_queue_priority = "SELECT priority FROM queue_table WHERE queue=?"
+    # Cursor objects used to fetch results from SQL query
+    fshare_cur = conn.cursor()
+    bank_priority_cur = conn.cursor()
+    queue_priority_cur = conn.cursor()
+
+    if bank is None:
+        # bank was not passed-in, so assume a default bank
+        cur.execute(
+            "SELECT bank FROM association_table WHERE username=? AND bank=default_bank",
+            (username,),
+        )
+        default_bank = cur.fetchone()
+        if default_bank:
+            bank = default_bank["bank"]
+        else:
+            raise ValueError(
+                f"could not find entry for {username} in association_table"
+            )
+
+    # get properties for priority calculation
+    fshare_cur.execute(
+        select_fshare,
+        (
+            username,
+            bank,
+        ),
+    )
+    bank_priority_cur.execute(select_bank_priority, (bank,))
+    queue_priority_cur.execute(select_queue_priority, (queue,))
+
+    result_fshare = fshare_cur.fetchone()
+    if result_fshare is None:
+        raise ValueError(f"could not find entry for {username} in association_table")
+    fairshare = result_fshare["fairshare"]
+
+    result_bank_priority = bank_priority_cur.fetchone()
+    if result_bank_priority is None:
+        raise ValueError(f"could not find entry for {bank} in bank_table")
+    bank_priority = result_bank_priority["priority"]
+
+    result_queue_priority = queue_priority_cur.fetchone()
+    if result_queue_priority is None:
+        # no queue was passed in; just assume queue has priority of 0
+        queue_priority = 0
+    else:
+        queue_priority = result_queue_priority["priority"]
+
+    job_priority = (
+        (fairshare * fairshare_weight)
+        + (bank_priority * bank_weight)
+        + (queue_priority * queue_weight)
+    )
+
+    calculation = f"""username: {username}
+bank: {bank}
+queue: {queue}
+
+bank {bank} priority: {bank_priority}
+queue {queue} priority: {queue_priority}
+
+priority = (fairshare * fairshare_weight) + (bank_priority * bank_weight) + (queue_priority * queue_weight)
+priority = ({fairshare} * {fairshare_weight}) + ({bank_priority} * {bank_weight}) + ({queue_priority} * {queue_weight})
+priority = ({fairshare * fairshare_weight}) + ({bank_priority * bank_weight}) + ({queue_priority * queue_weight})
+priority = {job_priority}"""
+
+    return calculation
