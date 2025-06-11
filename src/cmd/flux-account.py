@@ -918,6 +918,33 @@ def add_list_queues_arg(subparsers):
     )
 
 
+def add_jobs_arg(subparsers):
+    subparser_jobs = subparsers.add_parser(
+        "jobs",
+        help="see a compact breakdown of active job's and how their priorities were calculated",
+        formatter_class=flux.util.help_formatter(),
+    )
+    subparser_jobs.set_defaults(func="jobs")
+    subparser_jobs.add_argument(
+        "user",
+        help="username to look up jobs for",
+        type=str,
+        metavar="USERNAME",
+    )
+    subparser_jobs.add_argument(
+        "--bank",
+        help="list all jobs under a certain bank",
+        type=str,
+        metavar="BANK",
+    )
+    subparser_jobs.add_argument(
+        "--queue",
+        help="list all jobs under a certain queue",
+        type=str,
+        metavar="QUEUE",
+    )
+
+
 def add_arguments_to_parser(parser, subparsers):
     add_path_arg(parser)
     add_output_file_arg(parser)
@@ -946,6 +973,7 @@ def add_arguments_to_parser(parser, subparsers):
     add_export_db_arg(subparsers)
     add_pop_db_arg(subparsers)
     add_list_queues_arg(subparsers)
+    add_jobs_arg(subparsers)
 
 
 def set_db_location(args):
@@ -990,6 +1018,7 @@ def select_accounting_function(args, output_file, parser):
         "export_db": "accounting.export_db",
         "pop_db": "accounting.pop_db",
         "list_queues": "accounting.list_queues",
+        "jobs": "accounting.jobs",
     }
 
     if args.func in func_map:
