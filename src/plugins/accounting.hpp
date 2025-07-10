@@ -49,6 +49,7 @@ extern "C" {
 
 // dependency names for flux-accounting dependencies
 #define D_QUEUE_MRJ  "max-run-jobs-queue"
+#define D_QUEUE_MRES "max-resources-queue"
 #define D_ASSOC_MRJ  "max-running-jobs-user-limit"
 #define D_ASSOC_MRES "max-resources-user-limit"
 
@@ -105,6 +106,7 @@ public:
     bool under_queue_max_run_jobs (const std::string &queue,
                                    std::map<std::string, Queue> queues);
     bool under_max_resources (const Job &job);
+    bool under_queue_max_resources (const Job &job, const Queue &queue);
 };
 
 class Bank {

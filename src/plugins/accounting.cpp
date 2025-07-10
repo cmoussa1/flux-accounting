@@ -320,3 +320,11 @@ bool Association::under_max_resources (const Job &job)
 
     return under_max_resources;
 }
+
+bool Association::under_queue_max_resources (const Job &job,
+                                             const Queue &queue)
+{
+    bool under_max_nodes = (queue_usage[queue.name].cur_nodes + job.nnodes) <= queue.max_nodes;
+
+    return under_max_nodes;
+}
