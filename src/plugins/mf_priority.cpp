@@ -211,7 +211,9 @@ static void add_special_association (flux_plugin_t *p, flux_t *h, int userid)
  * Using the jobspec from a job, increment the cur_nodes and cur_cores counts
  * for an association.
  */
-static int increment_resources (Association *b, json_t *jobspec)
+static int increment_resources (Association *b,
+                                const std::string &queue,
+                                json_t *jobspec)
 {
     struct jj_counts counts;
 
@@ -225,6 +227,10 @@ static int increment_resources (Association *b, json_t *jobspec)
     b->cur_nodes = b->cur_nodes + counts.nnodes;
     b->cur_cores = b->cur_cores + (counts.nslots * counts.slot_size);
 
+    // increment cur_nodes for queue
+    b->queue_usage[queue].cur_nodes = b->queue_usage[queue].cur_nodes +
+                                      counts.nnodes;
+
     return 0;
 }
 
@@ -233,7 +239,9 @@ static int increment_resources (Association *b, json_t *jobspec)
  * Using the jobspec from a job, decrement the cur_nodes and cur_cores counts
  * for an association.
  */
-static int decrement_resources (Association *b, json_t *jobspec)
+static int decrement_resources (Association *b,
+                                const std::string &queue,
+                                json_t *jobspec)
 {
     struct jj_counts counts;
 
@@ -246,6 +254,10 @@ static int decrement_resources (Association *b, json_t *jobspec)
 
     b->cur_nodes = b->cur_nodes - counts.nnodes;
     b->cur_cores = b->cur_cores - (counts.nslots * counts.slot_size);
+
+    // decrement cur_nodes for queue
+    b->queue_usage[queue].cur_nodes = b->queue_usage[queue].cur_nodes -
+                                      counts.nnodes;
 
     return 0;
 }
@@ -1151,6 +1163,7 @@ static int run_cb (flux_plugin_t *p,
     Association *b;
     json_t *jobspec = NULL;
     char *queue = NULL;
+    std::string queue_str;
 
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
@@ -1183,6 +1196,7 @@ static int run_cb (flux_plugin_t *p,
         // a queue was passed-in; increment counter of the number of
         // queue-specific running jobs for this association
         b->queue_usage[std::string (queue)].cur_run_jobs++;
+    queue_str = queue ? queue : "";
 
     // increment the user's current running jobs count
     b->cur_run_jobs++;
@@ -1195,7 +1209,7 @@ static int run_cb (flux_plugin_t *p,
                                      "jobspec");
         return -1;
     } else {
-        if (increment_resources (b, jobspec) < 0) {
+        if (increment_resources (b, queue_str, jobspec) < 0) {
             flux_jobtap_raise_exception (p,
                                          FLUX_JOBTAP_CURRENT_JOB,
                                          "mf_priority",
@@ -1453,6 +1467,8 @@ static int inactive_cb (flux_plugin_t *p,
 
         return -1;
     }
+    // if a queue cannot be found, just set it to ""
+    queue_str = queue ? queue : "";
 
     b->cur_active_jobs--;
     // nothing more to do if this job was never running
@@ -1471,7 +1487,7 @@ static int inactive_cb (flux_plugin_t *p,
                                      "unpack jobspec");
         return -1;
     } else {
-        if (decrement_resources (b, jobspec) < 0) {
+        if (decrement_resources (b, queue_str, jobspec) < 0) {
             flux_jobtap_raise_exception (p,
                                          FLUX_JOBTAP_CURRENT_JOB,
                                          "mf_priority",
@@ -1482,8 +1498,6 @@ static int inactive_cb (flux_plugin_t *p,
         }
     }
 
-    // if a queue cannot be found, just set it to ""
-    queue_str = queue ? queue : "";
     if (b->queue_usage[queue_str].cur_run_jobs > 0)
         // decrement num of running jobs the association has in queue
         b->queue_usage[queue_str].cur_run_jobs--;
