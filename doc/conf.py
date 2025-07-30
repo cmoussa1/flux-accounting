@@ -51,7 +51,12 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 master_doc = "index"
 source_suffix = ".rst"
 
-extensions = ["sphinx.ext.intersphinx", "sphinx.ext.napoleon", "domainrefs"]
+extensions = [
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.napoleon",
+    "domainrefs",
+    "sphinx_rtd_dark_mode",
+]
 
 domainrefs = {
     "core:man1": {
