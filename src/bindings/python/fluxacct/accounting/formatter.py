@@ -372,6 +372,8 @@ class JobsFormatter(flux.util.OutputFormat):
         "resources": "resources",
         "project": "project",
         "bank": "bank",
+        "requested_duration": "requested_duration",
+        "elapsed": "elapsed",
     }
 
     def __init__(self, fmt, headings=None):
