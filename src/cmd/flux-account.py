@@ -1167,6 +1167,12 @@ def add_jobs_arg(subparsers):
         help="specify output format using Python's string format syntax",
         metavar="FORMAT",
     )
+    subparser_jobs.add_argument(
+        "-f",
+        "--filter",
+        help="list jobs with specific job state or result",
+        metavar="STATE|RESULT",
+    )
 
 
 def add_show_usage_arg(subparsers):
