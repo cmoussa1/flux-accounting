@@ -63,6 +63,13 @@ job records.
     column by. Expressions can be started with any of the following operators:
     ``<``, ``<=``, ``=``, ``>=``, or ``>``.
 
+.. option:: -D/--duration-delta
+
+    Return jobs that fit a certain duration delta's criteria by passing an
+    expression. Multiple filters can be passed to refine the ``duration_delta``
+    column by. Expressions can be started with any of the following operators:
+    ``<``, ``<=``, ``=``, ``>=``, or ``>``.
+
 .. option:: -o/--format
 
     Specify output format using Python's string format syntax. The available
