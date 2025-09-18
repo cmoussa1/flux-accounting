@@ -54,12 +54,20 @@ test_expect_success 'submit a job that gets canceled' '
 	flux job info ${jobid4} eventlog
 '
 
+test_expect_success 'submit a job that fails right away' '
+	test_must_fail flux submit --setattr=system.bank=bankA ./foo.sh
+'
+
 test_expect_success 'wait for jobs to finish running' '
 	sleep 5
 '
 
 test_expect_success 'run fetch-job-records script' '
-	flux account-create-elastic-logs
+	flux python $(pwd)/../../src/cmd/flux-account-create-elastic-logs.py
+'
+
+test_expect_success 'fail on purpose' '
+	test 1 -eq 0
 '
 
 test_expect_success 'remove flux-accounting DB' '

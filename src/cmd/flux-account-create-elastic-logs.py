@@ -7,38 +7,43 @@ import pwd
 import grp
 import time
 import datetime
-import os
-from typing import Optional, Tuple
+import syslog
 
 import flux
 import flux.job
 
+# configure logging
+syslog.openlog(logoption=syslog.LOG_CONS, facility=syslog.LOG_LOCAL7)
+# file to save the timestamp of the last seen job in
+FLUX_TIMESTAMP_FILE = "/var/log/flux/last_completed"
 
 queue_timelimits = {}
 
-LOG_FILE = "create_flux_job_logs.log"
 OUTCOME_CONVERSION = {1: "COMPLETED", 2: "FAILED", 4: "CANCELLED", 8: "TIMEOUT"}
 
 
 def get_username(uid) -> str:
     try:
-        return pwd.getpwuid(uid).pw_name
-    except KeyError:
-        return str(uid)
+        username = pwd.getpwuid(uid).pw_name
+    except (KeyError, ValueError, TypeError):
+        username = str(uid)
+    return username
 
 
 def get_gid(uid) -> str:
     try:
-        return pwd.getpwuid(uid).pw_gid
-    except KeyError:
-        return ""
+        gid = pwd.getpwuid(uid).pw_gid
+    except (KeyError, ValueError, TypeError):
+        gid = ""
+    return gid
 
 
 def get_groupname(gid) -> str:
     try:
-        return grp.getgrgid(gid).gr_name
-    except KeyError:
-        return ""
+        groupname = grp.getgrgid(gid).gr_name
+    except (KeyError, ValueError, TypeError):
+        groupname = ""
+    return groupname
 
 
 def get_jobs(rpc_handle) -> list:
@@ -50,41 +55,7 @@ def get_jobs(rpc_handle) -> list:
         sys.exit(1)
 
 
-def log_status(status) -> None:
-    """
-    Logs either SUCCESS or FAILURE with a timestamp.
-    """
-    timestamp = time.time()
-    entry = f"{status} = {timestamp}\n"
-
-    if not os.path.exists(LOG_FILE):
-        # the log file does not exist yet; create the file
-        open(LOG_FILE, "w").close()
-
-    # overwrite log on SUCCESS, append on FAILURE
-    mode = "w" if status == "SUCCESS" else "a"
-
-    with open(LOG_FILE, mode) as log:
-        log.write(entry)
-
-
-def read_first_entry() -> Optional[Tuple[str, int]]:
-    """
-    Process the first line of the log file and return it.
-    """
-    if not os.path.exists(LOG_FILE):
-        # the log file does not exist; don't return anything
-        return None
-
-    with open(LOG_FILE, "r") as log:
-        first_line = log.readline().strip()
-        if first_line:
-            key, value = first_line.split(" = ")
-            return key, value
-    return None
-
-
-def fetch_new_jobs(last_timestamp) -> list:
+def fetch_new_jobs(last_timestamp=None) -> list:
     """
     Fetch new jobs using Flux's job-list and job-info interfaces. Return a
     list of dictionaries that contain attribute information for inactive jobs.
@@ -97,24 +68,30 @@ def fetch_new_jobs(last_timestamp) -> list:
     except Exception as exc:
         # Flux is down or this logging script wasn't able to connect to the instance;
         # log an error message and exit
-        log_status("FAILURE")
-        print("Could not connect to Flux instance; Flux may be down", file=sys.stderr)
-        print(f"exception message: {exc}", file=sys.stderr)
-        sys.exit(1)
-
-    result = read_first_entry()
-    if result:
-        key, failure_timestamp = result
-        if key == "FAILURE":
-            # the log file reported a FAILURE status message the last time this
-            # script ran; set the last timestamp to one hour before the first
-            # logged FAILURE
-            last_timestamp = failure_timestamp - 3900
+        syslog.syslog(
+            syslog.LOG_ERR, "Could not connect to Flux instance; Flux may be down"
+        )
+        syslog.syslog(syslog.LOG_ERR, f"exception message: {exc}")
+        sys.exit(0)
 
     if last_timestamp is None:
-        # a timestamp wasn't specified; default to gathering all jobs
-        # that finished in the last hour
-        last_timestamp = time.time() - 3600
+        # a timestamp wasn't specified; read from the log file and generate a timestamp
+        try:
+            with open(FLUX_TIMESTAMP_FILE, "r") as fp:
+                last_timestamp = float(fp.read().strip())
+        except FileNotFoundError:
+            # the log file doesn't exist, perhaps due to this being run for the
+            # first time; get every job that has run
+            last_timestamp = 0.0
+        except ValueError:
+            # a timestamp could not be extracted from the file; log an error and exit
+            syslog.syslog(
+                syslog.LOG_ERR, "could not extract timestamp from Flux job log file"
+            )
+            sys.exit(1)
+        except Exception as exc:
+            syslog.syslog(syslog.LOG_ERR, f"an unexpected error occurred: {exc}")
+            sys.exit(1)
 
     # get queue information
     future = handle.rpc("config.get")
@@ -123,11 +100,12 @@ def fetch_new_jobs(last_timestamp) -> list:
     except EnvironmentError:
         sys.exit(1)
 
-    queue_info = qlist.get("queues")
-    if queue_info is not None:
-        for queue in queue_info:
-            # place queue name and time limit in map
-            queue_timelimits[queue] = queue_info[queue]["policy"]["limits"]["duration"]
+    queue_info = qlist.get("queues", {})
+    if queue_info:
+        for queue, details in queue_info.items():
+            queue_timelimits[queue] = (
+                details.get("policy", {}).get("limits", {}).get("duration", "UNKNOWN")
+            )
 
     # construct and send RPC
     rpc_handle = flux.job.job_list_inactive(handle, since=last_timestamp, max_entries=0)
@@ -187,6 +165,10 @@ def create_job_dicts(jobs) -> list:
         rec["group"] = {}
 
         rec["event"]["dataset"] = "flux.joblog"
+        rec["schema"] = {}
+        rec["schema"]["version_number"] = 2.1
+        # initialize job.node.list
+        rec["job"]["node"]["list"] = -1
 
         # convert flux keys to defined common schema keys
         rec["job"]["id"] = job.get("id")
@@ -199,7 +181,7 @@ def create_job_dicts(jobs) -> list:
         rec["job"]["project"] = job.get("project")
         rec["job"]["jobspec"] = job.get("jobspec")
         rec["job"]["eventlog"] = job.get("eventlog")
-        rec["event"]["duration"] = job.get("duration")
+        rec["job"]["requested_duration"] = job.get("duration")
         rec["job"]["node"]["list"] = job.get("nodelist")
         rec["job"]["node"]["count"] = job.get("nnodes")
         rec["job"]["task"]["count"] = job.get("ntasks")
@@ -214,7 +196,9 @@ def create_job_dicts(jobs) -> list:
 
         if rec.get("job", {}).get("queue") is not None:
             # place max timelimit for queue in job record
-            rec["job"]["queue_maxtimelimit"] = queue_timelimits[rec["job"]["queue"]]
+            rec["job"]["queue_maxtimelimit"] = queue_timelimits.get(
+                rec["job"]["queue"], "UNKNOWN"
+            )
 
         if rec.get("user", {}).get("id") is not None:
             # add username, gid, groupname
@@ -224,6 +208,7 @@ def create_job_dicts(jobs) -> list:
 
         # convert timestamps to ISO8601
         if job.get("t_submit") is not None:
+            rec["job"]["submittime_epoch"] = job["t_submit"]
             rec["job"]["submittime"] = datetime.datetime.fromtimestamp(
                 job["t_submit"], tz=datetime.timezone.utc
             ).isoformat()
@@ -255,6 +240,7 @@ def create_job_dicts(jobs) -> list:
             rec["event"]["duration_seconds"] = round(
                 job.get("t_inactive") - job.get("t_run"), 1
             )
+            rec["event"]["duration"] = rec["event"]["duration_seconds"] * 10**9
 
         if job.get("nnodes") is not None and job.get("ntasks") is not None:
             # compute number of processes * number of nodes
@@ -274,15 +260,20 @@ def create_job_dicts(jobs) -> list:
 
         job_dicts.append(rec)
 
-    return job_dicts
+    # sort by submittime of the job in ascending order (if for some reason a job does
+    # not have a submittime, write the earliest possible timestamp to put it at the
+    # front of the list)
+    sorted_job_dicts = sorted(
+        job_dicts,
+        key=lambda x: x.get("job", {}).get("submittime_epoch", "0.0"),
+    )
+    return sorted_job_dicts
 
 
 def write_to_file(job_records, output_file):
     with open(output_file, "a") as fp:
         for record in job_records:
             fp.write(json.dumps(record) + "\n")
-    # log SUCCESS
-    log_status("SUCCESS")
 
 
 def main():
@@ -319,6 +310,21 @@ def main():
     else:
         filename = args.output_file
     write_to_file(job_records, filename)
+
+    try:
+        # extract timestamp of the most recently submitted job
+        recent_job_timestamp = job_records[-1]["job"]["submittime_epoch"]
+    except (IndexError, KeyError, TypeError):
+        # default to just writing current time
+        recent_job_timestamp = time.time()
+    # write SUCCESS timestamp
+    try:
+        with open(FLUX_TIMESTAMP_FILE, "w") as fp:
+            # write the timestamp of the most recently submitted job
+            fp.write(f"{recent_job_timestamp}")
+    except Exception as exc:
+        syslog.syslog(f"error writing timestamp of last seen job: {exc}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
