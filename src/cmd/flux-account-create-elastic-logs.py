@@ -166,7 +166,7 @@ def create_job_dicts(jobs) -> list:
 
         rec["event"]["dataset"] = "flux.joblog"
         rec["schema"] = {}
-        rec["schema"]["version_number"] = 2.1
+        rec["schema"]["version_number"] = 2.2
         # initialize job.node.list
         rec["job"]["node"]["list"] = -1
 
@@ -189,6 +189,10 @@ def create_job_dicts(jobs) -> list:
         rec["job"]["urgency"] = job.get("urgency")
         rec["job"]["success"] = job.get("success")
         rec["job"]["exit_code"] = job.get("waitstatus")
+        rec["job"]["t_submit"] = job.get("t_submit")
+        rec["job"]["t_run"] = job.get("t_run")
+        rec["job"]["t_inactive"] = job.get("t_inactive")
+        rec["job"]["t_clean"] = job.get("t_clean")
 
         if job.get("result") is not None:
             # convert outcome code to a text value
@@ -313,7 +317,7 @@ def main():
 
     try:
         # extract timestamp of the most recently submitted job
-        recent_job_timestamp = job_records[-1]["job"]["submittime_epoch"]
+        recent_job_timestamp = job_records[-1]["job"]["t_inactive"]
     except (IndexError, KeyError, TypeError):
         # default to just writing current time
         recent_job_timestamp = time.time()

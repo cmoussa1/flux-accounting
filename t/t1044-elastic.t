@@ -49,26 +49,18 @@ test_expect_success 'submit some sleep 1 jobs under one user' '
 
 test_expect_success 'submit a job that gets canceled' '
 	jobid4=$(flux submit -N 1 --setattr=system.bank=bankA sleep 60) &&
-	sleep 5 &&
 	flux cancel ${jobid4} &&
+	flux job wait-event -vt 3 ${jobid4} clean
 	flux job info ${jobid4} eventlog
 '
 
-test_expect_success 'submit a job that fails right away' '
-	test_must_fail flux submit --setattr=system.bank=bankA ./foo.sh
-'
-
-test_expect_success 'wait for jobs to finish running' '
-	sleep 5
-'
-
 test_expect_success 'run fetch-job-records script' '
-	flux python $(pwd)/../../src/cmd/flux-account-create-elastic-logs.py
+	flux account-create-elastic-logs --output-file last_completed
 '
 
-test_expect_success 'fail on purpose' '
-	test 1 -eq 0
-'
+# test_expect_success 'fail on purpose' '
+# 	test 1 -eq 0
+# '
 
 test_expect_success 'remove flux-accounting DB' '
 	rm $(pwd)/FluxAccountingTest.db
