@@ -75,6 +75,7 @@ TESTSCRIPTS = \
 	t1070-issue749.t \
 	t1071-issue754.t \
 	t1072-compute-hours-limits-basic.t \
+	t1073-compute-hours-limits-hold.t \
 	t5000-valgrind.t \
 	python/t1000-example.py \
 	python/t1001_db.py \
