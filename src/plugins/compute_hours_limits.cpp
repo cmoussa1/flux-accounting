@@ -38,6 +38,12 @@ extern "C" {
 // custom job resource counting file
 #include "jj.hpp"
 
+// dependency names
+#define D_MAX_USAGE_GLOBAL  "max-usage-global"
+
+// default max usage for associations
+int max_usage_assoc = std::numeric_limits<int>::max ();
+
 // class to store runtimes for an Association's jobs as they enter through
 // various states
 class Job {
@@ -46,6 +52,23 @@ public:
     double t_run = 0.0;
     int nnodes = 0;
     double expected_usage = 0.0;
+    std::vector<std::string> deps;
+
+    // constructor
+    Job () = default;
+
+    // Inline implementations
+    void add_dep (const std::string &dep) {
+        deps.push_back (dep);
+    }
+    
+    bool contains_dep (const std::string &dep) const {
+        return std::find (deps.begin (), deps.end (), dep) != deps.end ();
+    }
+    
+    void remove_dep (const std::string &dep) {
+        deps.erase (std::remove(deps.begin (), deps.end (), dep), deps.end ());
+    }
 };
 
 // all attributes are per-association
@@ -59,6 +82,7 @@ public:
     double current_usage = 0.0;
     double total_usage = 0.0;
     std::unordered_map<flux_jobid_t, Job> jobs;
+    std::vector<Job> held_jobs; // vector to keep track of held Jobs
 
     // remove a Job from an Association's "jobs" map
     void remove_job (flux_jobid_t jobid) {
@@ -73,6 +97,9 @@ public:
 
     // convert an Association object to JSON string
     json_t *to_json () const;
+
+    // check to see if an Association is under the global max_usage limit
+    bool under_max_usage (const Job &job);
 };
 
 // data structures to store association data from the flux-accounting DB
@@ -81,13 +108,26 @@ std::map<int, std::string> assoc_default_bank;
 
 /******************************************************************************
  *                                                                            *
- *                            Helper Functions                                *
+ *                        Helper Functions and Methods                        *
  *                                                                            *
  *****************************************************************************/
 /*
- * Convert an Association object to a JSON object so it can be returned in the
- * output of "flux jobtap query".
+ * Check to see if an Association is under the global max_usage limit.
  */
+bool Association::under_max_usage (const Job &job)
+{
+    if (current_usage + job.expected_usage > max_usage_assoc)
+        // the job's expected usage would put the association over the max;
+        // hold the job
+        return false;
+    return true;
+}
+
+
+ /*
+  * Convert an Association object to a JSON object so it can be returned in the
+  * output of "flux jobtap query".
+  */
 json_t* Association::to_json () const
 {
     json_t *u = nullptr;
@@ -179,6 +219,68 @@ json_t* convert_map_to_json (std::map<int, std::map<std::string, Association>>
     }
 
     return accounting_data;
+}
+
+
+/*
+ * Loop through an association's held_jobs vector and see if each job satisfies
+ * all requirements to be released by the plugin. Check each flux-accounting
+ * limit individually to 1) ensure that the association is under the particular
+ * limit, and 2) the job currently contains a dependency related to that
+ * particular limit.
+ *
+ * If by the end of these limit checks, the Job object contains no
+ * dependencies, remove the Job from the association's list of held jobs and
+ * move onto the next job. If it contains at least one dependency, move the
+ * iterator to the next job and check to see if it satisfies all requirements
+ * to be released. Continue to loop until we've checked every held job for the
+ * association.
+ */
+static int check_and_release_held_jobs (flux_plugin_t *p, Association *a)
+{
+    std::string dependency;
+    flux_jobid_t held_job_id;
+    // the Association has at least one held Job; begin looping through
+    // held Jobs and see if they satisfy the requirements to be released
+    auto it = a->held_jobs.begin ();
+    while (it != a->held_jobs.end ()) {
+        // grab held Job object
+        Job &held_job = *it;
+
+        // is the association under the global max usage limit for the
+        // queue the held job is submitted under?
+        if (a->under_max_usage (held_job) &&
+            held_job.contains_dep (D_MAX_USAGE_GLOBAL)) {
+            if (flux_jobtap_dependency_remove (p,
+                                               held_job.id,
+                                               D_MAX_USAGE_GLOBAL) < 0) {
+                dependency = D_MAX_USAGE_GLOBAL;
+                held_job_id = held_job.id;
+                goto error;
+            }
+            held_job.remove_dep (D_MAX_USAGE_GLOBAL);
+        }
+
+        if (held_job.deps.empty ())
+            // the Job no longer has any flux-accounting dependencies on
+            // it; remove it from the Association's vector of held jobs
+            // (erase () will return the next valid iterator)
+            it = a->held_jobs.erase (it);
+        else
+            // the job did not meet all requirements to be released;
+            // move onto the next Job
+            ++it;
+    }
+error:
+    flux_jobtap_raise_exception (p,
+                                 held_job_id,
+                                 "compute_hours_limits",
+                                 0,
+                                 "check_and_release_held_jobs: failed to "
+                                 "remove %s dependency from job %ju",
+                                 dependency.c_str (),
+                                 held_job_id);
+    return -1;
 }
 
 /******************************************************************************
@@ -290,6 +392,50 @@ error:
 
 
 /*
+ * Unpack a payload containing configuration information for setting usage
+ * limits per-association in the plugin.
+ */
+static void configure_cb (flux_t *h,
+                       flux_msg_handler_t *mh,
+                       const flux_msg_t *msg,
+                       void *arg)
+{
+    json_t *data = NULL;
+    json_error_t error;
+    int num_data = 0;
+    int value = 0;
+
+    if (flux_request_unpack (msg, NULL, "{s:o}", "data", &data) < 0) {
+        flux_log_error (h, "failed to unpack custom_priority.trigger msg");
+        goto error;
+    }
+
+    if (!data || !json_is_array (data)) {
+        flux_log (h, LOG_ERR, "mf_priority: invalid bulk_update payload");
+        goto error;
+    }
+    num_data = json_array_size (data);
+
+    for (int i = 0; i < num_data; i++) {
+        json_t *el = json_array_get(data, i);
+
+        if (json_unpack_ex (el, &error, 0,
+                            "{s:i}",
+                            "max_compute_usage", &value) < 0)
+            flux_log (h, LOG_ERR, "compute_hours unpack: %s", error.text);
+
+        max_usage_assoc = value;
+    }
+
+    if (flux_respond (h, msg, NULL) < 0)
+        flux_log_error (h, "flux_respond");
+    return;
+error:
+    flux_respond_error (h, msg, errno, flux_msg_last_error (msg));
+}
+
+
+/*
  * Process a job in job.new and pack an Association object with the job so its
  * information can be later accessed to update requested and actual job usage.
  */
@@ -364,6 +510,7 @@ static int depend_cb (flux_plugin_t *p,
     double duration = 0.0;
     flux_jobid_t jobid;
     Association *a;
+    std::string dependency;
 
     a = static_cast<Association *> (flux_jobtap_job_aux_get (
                                     p,
@@ -419,7 +566,30 @@ static int depend_cb (flux_plugin_t *p,
         job->expected_usage = counts.nnodes * duration;
     }
 
+    Job potential_job = *job;
+     if (!a->under_max_usage (potential_job)) {
+        // the job's expected usage would put the association over the max;
+        // hold the job
+        if (flux_jobtap_dependency_add (p, jobid, D_MAX_USAGE_GLOBAL) < 0)
+                goto error;
+            potential_job.add_dep (D_MAX_USAGE_GLOBAL);
+    }
+    if (potential_job.deps.size () > 0) {
+        // Job has at least one dependency; store it in Association object
+        job->id = jobid;
+        a->held_jobs.emplace_back (potential_job);
+    }
+
     return 0;
+error:
+    flux_jobtap_raise_exception (p,
+                                 FLUX_JOBTAP_CURRENT_JOB,
+                                 "mf_priority",
+                                 0,
+                                 "job.state.depend: failed to add %s "
+                                 "dependency to job",
+                                 dependency.c_str ());
+    return -1;
 }
 
 
@@ -556,7 +726,22 @@ static int inactive_cb (flux_plugin_t *p,
     // remove the job from the Association's "jobs" map
     a->remove_job (jobid);
 
+    if (!a->held_jobs.empty ()) {
+        // the Association has at least one held Job; begin looping through
+        // held Jobs and see if they satisfy the requirements to be released
+        if (check_and_release_held_jobs (p, a) < 0)
+            goto error;
+    }
+
     return 0;
+error:
+    flux_jobtap_raise_exception (p,
+                                 FLUX_JOBTAP_CURRENT_JOB,
+                                 "compute_hours_limits",
+                                 0,
+                                 "job.state.inactive: failed to check and "
+                                 "release association's held jobs");
+    return -1;
 }
 
 
@@ -574,7 +759,8 @@ extern "C" int flux_plugin_init (flux_plugin_t *p)
 {
     if (flux_plugin_register (p, "compute_hours_limits", tab) < 0
         || flux_jobtap_service_register (p, "update", update_cb, p) < 0
-        || flux_jobtap_service_register (p, "clear", clear_cb, p) < 0)
+        || flux_jobtap_service_register (p, "clear", clear_cb, p) < 0
+        || flux_jobtap_service_register (p, "configure", configure_cb, p) < 0)
         return -1;
 
     return 0;
