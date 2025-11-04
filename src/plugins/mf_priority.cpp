@@ -29,6 +29,7 @@ extern "C" {
 #include <vector>
 #include <sstream>
 #include <cstdint>
+#include <iostream>
 
 // custom Association class file
 #include "accounting.hpp"
@@ -855,6 +856,7 @@ static int priority_cb (flux_plugin_t *p,
                                          userid);
             return -1;
         } else {
+            std::cout << "performed lookup of association" << std::endl;
             if (assoc->bank_name == "DNE")
                 // the association still does not have a valid entry in the
                 // users map, so keep it in PRIORITY
@@ -1086,6 +1088,32 @@ static int validate_cb (flux_plugin_t *p,
 
 
 /*
+ * Attempt to clear all flux-accounting dependencies from a job.
+ */
+int clear_dependencies (flux_plugin_t *p, flux_jobid_t jobid)
+{
+    if (flux_jobtap_dependency_remove (p,
+                                       jobid,
+                                       D_QUEUE_MRJ) == EINVAL)
+        return -1;
+    if (flux_jobtap_dependency_remove (p,
+                                       jobid,
+                                       D_QUEUE_MRES) == EINVAL)
+        return -1;
+    if (flux_jobtap_dependency_remove (p,
+                                       jobid,
+                                       D_ASSOC_MRJ) == EINVAL)
+        return -1;
+    if (flux_jobtap_dependency_remove (p,
+                                       jobid,
+                                       D_ASSOC_MRES) == EINVAL)
+        return -1;
+
+    return 0;
+}
+
+
+/*
  * Create an Association object to be associated with the job submitted.
  * This object contains things like active and running jobs limits, the
  * association's fair share value, and associated priorities with a
@@ -1105,17 +1133,24 @@ static int new_cb (flux_plugin_t *p,
     const char *project = NULL;
     int max_run_jobs, cur_active_jobs, max_active_jobs = 0;
     Association *b;
+    flux_job_state_t state;
+    flux_jobid_t jobid;
 
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:i, s{s{s{s?s, s?s, s?s}}}}",
+                                "{s:I, s:i, s:i, s{s{s{s?s, s?s, s?s}}}}",
+                                "id", &jobid,
+                                "state", &state,
                                 "userid", &userid,
                                 "jobspec", "attributes", "system",
                                 "bank", &bank, "queue", &queue,
                                 "project", &project) < 0) {
         return flux_jobtap_reject_job (p, args, "unable to unpack bank arg");
     }
+
+    std::cout << "job.new\n-------" << std::endl;
+    std::cout << "jobid: " << jobid << std::endl;
 
     b = static_cast<Association *> (flux_jobtap_job_aux_get (
                                                     p,
@@ -1128,8 +1163,27 @@ static int new_cb (flux_plugin_t *p,
 
         if (b == nullptr) {
             // the association could not be found in internal map, so create a
-            // special Association object that will hold the job in PRIORITY
+            // special Association object that will hold the job in PRIORITY;
+            // if the plugin was reloaded, any Association aux items associated
+            // with the job would also be cleared, so check to see if the job
+            // was already in DEPEND state before
             add_special_association (p, h, userid);
+            if (state == FLUX_JOB_STATE_DEPEND) {
+                std::cout << "job was in DEPEND; clearing dependencies" << std::endl;
+                // this job potentially had flux-accounting dependencies
+                // attached to it before a plugin reload and no longer has an
+                // Association object aux item associated with the job; try to
+                // remove any and all flux-accounting dependencies from the job
+                if (clear_dependencies (p, jobid) < 0) {
+                    flux_jobtap_raise_exception (p,
+                                                 FLUX_JOBTAP_CURRENT_JOB,
+                                                 "mf_priority", 0,
+                                                 "job.new: failed to clear "
+                                                 "old flux-accounting "
+                                                 "dependencies from job");
+                    return -1;
+                }
+            }
             return 0;
         }
 
@@ -1196,6 +1250,15 @@ static int new_cb (flux_plugin_t *p,
     b->cur_active_jobs++;
 
     return 0;
+error:
+    std::cout << "error occurred trying to remove dependency" << std::endl;
+    flux_jobtap_raise_exception (p,
+                                 jobid,
+                                 "mf_priority",
+                                 0,
+                                 "job.new: failed to remove dependencies "
+                                 "from job");
+    return -1;
 }
 
 
@@ -1212,11 +1275,13 @@ static int depend_cb (flux_plugin_t *p,
     json_t *jobspec = NULL;
     Job job;
     std::string queue_str;
+    flux_jobid_t jobid;
 
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:i, s:I, s:o, s{s{s{s?s}}}}",
+                                "{s:I, s:i, s:I, s:o, s{s{s{s?s}}}}",
+                                "id", &jobid,
                                 "userid", &userid, "id", &id,
                                 "jobspec", &jobspec,
                                 "jobspec", "attributes", "system",
@@ -1227,6 +1292,9 @@ static int depend_cb (flux_plugin_t *p,
                   flux_plugin_arg_strerror (args));
         return -1;
     }
+
+    std::cout << "job.depend\n----------" << std::endl;
+    std::cout << "jobid: " << jobid << std::endl;
 
     b = static_cast<Association *> (flux_jobtap_job_aux_get (
                                                     p,
@@ -1714,6 +1782,14 @@ static const struct flux_plugin_handler tab[] = {
 
 extern "C" int flux_plugin_init (flux_plugin_t *p)
 {
+    int world;
+    // Get configuration passed during plugin load
+    if (flux_plugin_conf_unpack (p, "{s?i}", "hello", &world) == 0) {
+        std::cout << "hello is: " << world << std::endl;
+    } else {
+        std::cout << "no config or failed to unpack" << std::endl;
+    }
+
     if (flux_plugin_register (p, "mf_priority", tab) < 0
         || flux_jobtap_service_register (p, "rec_update", rec_update_cb, p) < 0
         || flux_jobtap_service_register (p, "reprioritize", reprior_cb, p) < 0
