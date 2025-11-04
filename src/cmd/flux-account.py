@@ -1246,6 +1246,14 @@ def add_synchronize_userids_arg(subparsers):
     )
     subparsers_sync_userids.set_defaults(func="sync_userids")
 
+def add_init_plugin_arg(subparsers):
+    subparsers_init_plugin = subparsers.add_parser(
+        "init-plugin",
+        help="initialize multi-factor priority plugin with flux-accounting data",
+        formatter_class=flux.util.help_formatter(),
+    )
+    subparsers_init_plugin.set_defaults(func="init_plugin")
+
 
 def add_arguments_to_parser(parser, subparsers):
     add_path_arg(parser)
@@ -1282,6 +1290,7 @@ def add_arguments_to_parser(parser, subparsers):
     add_show_usage_arg(subparsers)
     add_edit_all_users_arg(subparsers)
     add_synchronize_userids_arg(subparsers)
+    add_init_plugin_arg(subparsers)
 
 
 def set_db_location(args):
@@ -1326,6 +1335,7 @@ def select_accounting_function(args, parser):
         "show_usage": "accounting.show_usage",
         "edit_all_users": "accounting.edit_all_users",
         "sync_userids": "accounting.sync_userids",
+        "init_plugin": "accounting.init_plugin",
     }
 
     if args.func in func_map:

@@ -29,6 +29,7 @@ extern "C" {
 #include <vector>
 #include <sstream>
 #include <cstdint>
+#include <iostream>
 
 // custom Association class file
 #include "accounting.hpp"
@@ -1105,15 +1106,23 @@ static int new_cb (flux_plugin_t *p,
     const char *project = NULL;
     int max_run_jobs, cur_active_jobs, max_active_jobs = 0;
     Association *b;
+    flux_job_state_t state;
+    json_t *jobspec = NULL;
+    std::string queue_str;
+    Job job;
+    flux_jobid_t id;
 
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:i, s{s{s{s?s, s?s, s?s}}}}",
+                                "{s:I, s:i, s:i, s{s{s{s?s, s?s, s?s}}}, s:o}",
+                                "id", &id,
                                 "userid", &userid,
+                                "state", &state,
                                 "jobspec", "attributes", "system",
                                 "bank", &bank, "queue", &queue,
-                                "project", &project) < 0) {
+                                "project", &project,
+                                "jobspec", &jobspec) < 0) {
         return flux_jobtap_reject_job (p, args, "unable to unpack bank arg");
     }
 
@@ -1194,6 +1203,70 @@ static int new_cb (flux_plugin_t *p,
 
     // increment the association's active jobs count
     b->cur_active_jobs++;
+
+    if (queue != NULL)
+        queue_str = queue;
+
+    if (state == FLUX_JOB_STATE_RUN) {
+        std::cout << "job is running" << std::endl;
+        // this job was already running; increment the association's running
+        // jobs and resource count(s)
+        b->cur_run_jobs++;
+        if (queue != NULL) {
+            // a queue was passed-in; increment counter of the number of
+            // queue-specific running jobs for this association
+            b->queue_usage[std::string (queue)].cur_run_jobs++;
+            // queue_str = queue;
+        }
+        if (jobspec == NULL) {
+            flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
+                                         "mf_priority", 0,
+                                         "job.new: failed to unpack jobspec");
+            return -1;
+        } else {
+            if (increment_resources (b, queue_str, jobspec) < 0) {
+                flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
+                                             "mf_priority", 0,
+                                             "job.new: failed to increment "
+                                             "resource count");
+                return -1;
+            }
+        }
+    }
+    if (state == FLUX_JOB_STATE_DEPEND) {
+        std::cout << "job is in depend" << std::endl;
+        // this job was in DEPEND state; add it to association's held_jobs
+        // attribute
+        // count resources requested for the job
+        if (job.count_resources (jobspec) < 0) {
+            flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
+                                         "mf_priority", 0,
+                                         "job.new: unable to count "
+                                         "resources for job");
+            return -1;
+        }
+        // look up the association's current number of running jobs in this
+        // queue; if it cannot be found in the map, an entry in the Association
+        // object will be initialized with a current running jobs count of 0
+        if (!b->under_queue_max_run_jobs (queue_str, queues)) {
+            job.add_dep (D_QUEUE_MRJ);
+        }
+        if (!b->under_queue_max_resources (job, queue_str, queues)) {
+            job.add_dep (D_QUEUE_MRES);
+        }
+        if (!b->under_max_run_jobs ()) {
+            job.add_dep (D_ASSOC_MRJ);
+        }
+        if (!b->under_max_resources (job)) {
+            job.add_dep (D_ASSOC_MRES);
+        }
+        if (job.deps.size () > 0) {
+            // Job has at least one dependency; store it in Association object
+            job.id = id;
+            job.queue = queue_str;
+            b->held_jobs.emplace_back (job);
+        }
+    }
 
     return 0;
 }
@@ -1712,8 +1785,263 @@ static const struct flux_plugin_handler tab[] = {
 };
 
 
+int load_associations (json_t *data)
+{
+    char *bank, *def_bank, *assoc_queues, *assoc_projects, *def_project = NULL;
+    int uid, max_running_jobs, max_active_jobs, max_nodes, max_cores = 0;
+    double fshare = 0.0;
+    json_t *jtemp = NULL;
+    json_error_t error;
+    int num_data = 0;
+    int active = 1;
+    std::stringstream s_stream;
+
+    if (!data || !json_is_array (data)) {
+        return -1;
+    }
+    num_data = json_array_size (data);
+
+    for (int i = 0; i < num_data; i++) {
+        json_t *el = json_array_get(data, i);
+
+        if (json_unpack_ex (el, &error, 0,
+                            "{s:i, s:s, s:s, s:F, s:i,"
+                            " s:i, s:s, s:i, s:s, s:s, s:i, s:i}",
+                            "userid", &uid,
+                            "bank", &bank,
+                            "def_bank", &def_bank,
+                            "fairshare", &fshare,
+                            "max_running_jobs", &max_running_jobs,
+                            "max_active_jobs", &max_active_jobs,
+                            "queues", &assoc_queues,
+                            "active", &active,
+                            "projects", &assoc_projects,
+                            "def_project", &def_project,
+                            "max_nodes", &max_nodes,
+                            "max_cores", &max_cores) < 0) {
+            return -1;
+        }
+
+        Association *b;
+        b = &users[uid][bank];
+
+        b->bank_name = bank;
+        b->fairshare = fshare;
+        b->max_run_jobs = max_running_jobs;
+        b->max_active_jobs = max_active_jobs;
+        b->active = active;
+        b->def_project = def_project;
+        b->max_nodes = max_nodes;
+        b->max_cores = max_cores;
+
+        // split queues comma-delimited string and add it to b->queues vector
+        b->queues.clear ();
+        if (has_text (assoc_queues))
+            split_string_and_push_back (assoc_queues, b->queues);
+        // do the same thing for the association's projects
+        b->projects.clear ();
+        if (has_text (assoc_projects))
+            split_string_and_push_back (assoc_projects, b->projects);
+
+        users_def_bank[uid] = def_bank;
+    }
+
+    return 0;
+}
+
+
+int load_queues (json_t *data)
+{
+    char *queue = NULL;
+    int min_nodes_per_job, max_nodes_per_job, max_time_per_job, priority = 0;
+    int max_running_jobs, max_nodes_per_assoc = 0;
+    json_t *jtemp = NULL;
+    json_error_t error;
+    int num_data = 0;
+
+    if (!data || !json_is_array (data)) {
+        std::cout << "could not unpack association" << std::endl;
+        return -1;
+    }
+    num_data = json_array_size (data);
+
+    // clear queues map
+    queues.clear ();
+
+    for (int i = 0; i < num_data; i++) {
+        json_t *el = json_array_get(data, i);
+
+        if (json_unpack_ex (el, &error, 0,
+                            "{s:s, s:i, s:i, s:i, s:i, s:i, s:i}",
+                            "queue", &queue,
+                            "min_nodes_per_job", &min_nodes_per_job,
+                            "max_nodes_per_job", &max_nodes_per_job,
+                            "max_time_per_job", &max_time_per_job,
+                            "priority", &priority,
+                            "max_running_jobs", &max_running_jobs,
+                            "max_nodes_per_assoc", &max_nodes_per_assoc) < 0)
+            return -1;
+
+        Queue *q;
+        q = &queues[queue];
+
+        q->name = queue;
+        q->min_nodes_per_job = min_nodes_per_job;
+        q->max_nodes_per_job = max_nodes_per_job;
+        q->max_time_per_job = max_time_per_job;
+        q->priority = priority;
+        q->max_running_jobs = max_running_jobs;
+        q->max_nodes_per_assoc = max_nodes_per_assoc;
+    }
+
+    return 0;
+}
+
+
+int load_projects (json_t *data)
+{
+    char *project = NULL;
+    json_t *jtemp = NULL;
+    json_error_t error;
+    int num_data = 0;
+    size_t index;
+    json_t *el;
+
+    if (!data || !json_is_array (data)) {
+        return -1;
+    }
+    num_data = json_array_size (data);
+
+    // clear the projects vector
+    projects.clear ();
+
+    json_array_foreach (data, index, el) {
+        if (json_unpack_ex (el, &error, 0, "{s:s}", "project", &project) < 0)
+            return -1;
+        projects.push_back (project);
+    }
+
+    return 0;
+}
+
+
+int load_banks (json_t *data)
+{
+    char *bank_name = NULL;
+    double priority = 0.0;
+    json_t *jtemp = NULL;
+    json_error_t error;
+    int num_data = 0;
+    size_t index;
+    json_t *el;
+
+    if (!data || !json_is_array (data)) {
+        return -1;
+    }
+    num_data = json_array_size (data);
+
+    // clear the banks map
+    banks.clear ();
+
+    for (int i = 0; i < num_data; i++) {
+        json_t *el = json_array_get(data, i);
+
+        if (json_unpack_ex (el, &error, 0,
+                            "{s:s, s:F}",
+                            "bank", &bank_name,
+                            "priority", &priority) < 0)
+            return -1;
+
+        Bank *b;
+        b = &banks[bank_name];
+
+        b->name = bank_name;
+        b->priority = priority;
+    }
+
+    return 0;
+}
+
+
+int load_priority_factors (json_t *data)
+{
+    char *factor = NULL;
+    long int weight = 0;
+    json_t *jtemp = NULL;
+    json_error_t error;
+    int num_data = 0;
+    size_t index;
+    json_t *el;
+
+    if (!data || !json_is_array (data)) {
+        return -1;
+    }
+    num_data = json_array_size (data);
+
+    for (int i = 0; i < num_data; i++) {
+        json_t *el = json_array_get(data, i);
+
+        if (json_unpack_ex (el, &error, 0,
+                            "{s:s, s:I}",
+                            "factor", &factor,
+                            "weight", &weight) < 0)
+            return -1;
+
+        if (factor != NULL)
+            priority_weights[factor] = weight;
+    }
+
+    return 0;
+}
+
+
 extern "C" int flux_plugin_init (flux_plugin_t *p)
 {
+    json_t *config_obj = NULL;
+
+    if (flux_plugin_conf_unpack (p, "{s?o}", "config", &config_obj) == 0 && config_obj) {
+        json_error_t error;
+        json_t *associations = NULL;
+        json_t *unpacked_queues = NULL;
+        json_t *unpacked_projects = NULL;
+        json_t *unpacked_banks = NULL;
+        json_t *unpacked_factors = NULL;
+        
+        // Now unpack from the config object directly
+        if (json_unpack_ex (config_obj, &error, 0,
+                            "{s?o s?o s?o s?o s?o}",
+                            "associations", &associations,
+                            "queues", &unpacked_queues,
+                            "projects", &unpacked_projects,
+                            "banks", &unpacked_banks,
+                            "priority_factors", &unpacked_factors) == 0) {
+            if (associations) {
+                std::cout << "Loading associations..." << std::endl;
+                load_associations (associations);
+            }
+            if (unpacked_queues) {
+                std::cout << "Loading queues..." << std::endl;
+                load_queues (unpacked_queues);
+            }
+            if (unpacked_projects) {
+                std::cout << "Loading projects..." << std::endl;
+                load_projects (unpacked_projects);
+            }
+            if (unpacked_banks) {
+                std::cout << "Loading banks..." << std::endl;
+                load_banks (unpacked_banks);
+            }
+            if (unpacked_factors) {
+                std::cout << "Loading priority_factors..." << std::endl;
+                load_priority_factors (unpacked_factors);
+            }
+        } else {
+            std::cout << "Failed to unpack associations/queues: " << error.text << std::endl;
+        }
+    } else {
+        std::cout << "Failed to unpack config object" << std::endl;
+    }
+
     if (flux_plugin_register (p, "mf_priority", tab) < 0
         || flux_jobtap_service_register (p, "rec_update", rec_update_cb, p) < 0
         || flux_jobtap_service_register (p, "reprioritize", reprior_cb, p) < 0

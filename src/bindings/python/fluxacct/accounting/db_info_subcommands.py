@@ -10,9 +10,12 @@
 # SPDX-License-Identifier: LGPL-3.0
 ###############################################################
 import csv
+import sqlite3
+import json
 
 from fluxacct.accounting import bank_subcommands as b
 from fluxacct.accounting import user_subcommands as u
+from fluxacct.accounting.util import with_cursor
 
 
 def export_db_info(conn, users=None, banks=None):
@@ -97,3 +100,140 @@ def populate_db(conn, users=None, banks=None):
                     )
         except IOError as err:
             print(err)
+
+
+# @with_cursor
+# def init_plugin(conn, cursor, associations=False):
+#     """
+#     Return a JSON object of certain tables in the flux-accounting database.
+
+#     Args:
+#         associations: Create a JSON object of the association_table.
+#     """
+#     conn.row_factory = sqlite3.Row
+#     bulk_user_data = []
+#     db_data = ""
+
+#     # fetch all rows from association_table (will print out tuples)
+#     for row in cursor.execute(
+#         """SELECT userid, bank, default_bank,
+#         fairshare, max_running_jobs, max_active_jobs,
+#         queues, active, projects, default_project, max_nodes, max_cores
+#         FROM association_table"""
+#     ):
+#         # create a JSON payload with the results of the query
+#         single_user_data = {
+#             "userid": int(row["userid"]),
+#             "bank": str(row["bank"]),
+#             "def_bank": str(row["default_bank"]),
+#             "fairshare": float(row["fairshare"]),
+#             "max_running_jobs": int(row["max_running_jobs"]),
+#             "max_active_jobs": int(row["max_active_jobs"]),
+#             "queues": str(row["queues"]),
+#             "active": int(row["active"]),
+#             "projects": str(row["projects"]),
+#             "def_project": str(row["default_project"]),
+#             "max_nodes": int(row["max_nodes"]),
+#             "max_cores": int(row["max_cores"]),
+#         }
+#         bulk_user_data.append(single_user_data)
+
+#     db_data += f"associations={json.dumps(bulk_user_data)} "
+
+#     return db_data
+
+
+@with_cursor
+def init_plugin(conn, cursor):
+    """
+    Return a JSON object of certain tables in the flux-accounting database.
+
+    Args:
+        conn: SQLite connection object
+        cursor: SQLite cursor object
+
+    Returns:
+        A JSON string containing associations and queues data
+    """
+    conn.row_factory = sqlite3.Row
+    bulk_user_data = []
+    bulk_queue_data = []
+    bulk_proj_data = []
+    bulk_bank_data = []
+    bulk_factor_data = []
+    config = {}
+
+    # fetch all rows from association_table
+    for row in cursor.execute(
+        """SELECT userid, bank, default_bank,
+        fairshare, max_running_jobs, max_active_jobs,
+        queues, active, projects, default_project, max_nodes, max_cores
+        FROM association_table"""
+    ):
+        # create a JSON payload with the results of the query
+        single_user_data = {
+            "userid": int(row["userid"]),
+            "bank": str(row["bank"]),
+            "def_bank": str(row["default_bank"]),
+            "fairshare": float(row["fairshare"]),
+            "max_running_jobs": int(row["max_running_jobs"]),
+            "max_active_jobs": int(row["max_active_jobs"]),
+            "queues": str(row["queues"]),
+            "active": int(row["active"]),
+            "projects": str(row["projects"]),
+            "def_project": str(row["default_project"]),
+            "max_nodes": int(row["max_nodes"]),
+            "max_cores": int(row["max_cores"]),
+        }
+        bulk_user_data.append(single_user_data)
+
+    config["associations"] = bulk_user_data
+
+    # fetch all rows from queue_table
+    for row in cursor.execute("SELECT * FROM queue_table"):
+        # create a JSON payload with the results of the query
+        single_q_data = {
+            "queue": str(row["queue"]),
+            "min_nodes_per_job": int(row["min_nodes_per_job"]),
+            "max_nodes_per_job": int(row["max_nodes_per_job"]),
+            "max_time_per_job": int(row["max_time_per_job"]),
+            "priority": int(row["priority"]),
+            "max_running_jobs": int(row["max_running_jobs"]),
+            "max_nodes_per_assoc": int(row["max_nodes_per_assoc"]),
+        }
+        bulk_queue_data.append(single_q_data)
+
+    config["queues"] = bulk_queue_data
+
+    # fetch all rows from project_table
+    for row in cursor.execute("SELECT project FROM project_table"):
+        # create a JSON payload with the results of the query
+        single_project = {
+            "project": str(row["project"]),
+        }
+        bulk_proj_data.append(single_project)
+
+    config["projects"] = bulk_proj_data
+
+    # fetch rows from bank_table
+    for row in cursor.execute("SELECT bank, priority FROM bank_table"):
+        single_bank = {
+            "bank": str(row["bank"]),
+            "priority": float(row["priority"]),
+        }
+        bulk_bank_data.append(single_bank)
+
+    config["banks"] = bulk_bank_data
+
+    # fetch rows from priority_factor_weight_table
+    for row in cursor.execute("SELECT * FROM priority_factor_weight_table"):
+        single_priority_factor = {
+            "factor": str(row["factor"]),
+            "weight": int(row["weight"]),
+        }
+        bulk_factor_data.append(single_priority_factor)
+
+    config["priority_factors"] = bulk_factor_data
+
+    # Return a single JSON object containing both associations and queues
+    return json.dumps(config)
