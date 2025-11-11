@@ -1750,6 +1750,7 @@ extern "C" int flux_plugin_init (flux_plugin_t *p)
 
     json_t *config_obj = NULL;
     flux_t *h = flux_jobtap_get_flux (p);
+    const char *sort_mode = NULL;
     if (flux_plugin_conf_unpack (p, "{s?o}", "config", &config_obj) == 0
         && config_obj) {
         // initialize the priority plugin with a JSON object containing
@@ -1765,6 +1766,13 @@ extern "C" int flux_plugin_init (flux_plugin_t *p)
             flux_log_error (h, "error initializing plugin with JSON object");
             return -1;
         };
+    }
+
+    if (flux_plugin_conf_unpack (p, "{s?s}", "sort", &sort_mode) == 0
+        && sort_mode) {
+        if (flux_jobtap_set_load_sort_order (p, sort_mode) < 0) {
+            return -1;
+        }
     }
 
     if (flux_plugin_register (p, "mf_priority", tab) < 0
