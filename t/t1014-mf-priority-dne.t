@@ -80,7 +80,9 @@ test_expect_success 'send the user/bank information to the plugin without reprio
 				"priority": 0,
 				"min_nodes_per_job": 0,
 				"max_nodes_per_job": 5,
-				"max_time_per_job": 64000
+				"max_time_per_job": 64000,
+				"max_running_jobs": 10000,
+				"max_nodes_per_assoc": 2147483647
 			}
 		]
 	}
