@@ -29,6 +29,7 @@ extern "C" {
 #include <vector>
 #include <sstream>
 #include <cstdint>
+#include <iostream>
 
 // custom Association class file
 #include "accounting.hpp"
@@ -520,14 +521,7 @@ static void rec_update_cb (flux_t *h,
                            const flux_msg_t *msg,
                            void *arg)
 {
-    char *bank, *def_bank, *assoc_queues, *assoc_projects, *def_project = NULL;
-    int uid, max_running_jobs, max_active_jobs, max_nodes, max_cores = 0;
-    double fshare = 0.0;
-    json_t *data, *jtemp = NULL;
-    json_error_t error;
-    int num_data = 0;
-    int active = 1;
-    std::stringstream s_stream;
+    json_t *data = NULL;
 
     if (flux_request_unpack (msg, NULL, "{s:o}", "data", &data) < 0) {
         flux_log_error (h, "failed to unpack custom_priority.trigger msg");
@@ -538,50 +532,10 @@ static void rec_update_cb (flux_t *h,
         flux_log (h, LOG_ERR, "mf_priority: invalid bulk_update payload");
         goto error;
     }
-    num_data = json_array_size (data);
 
-    for (int i = 0; i < num_data; i++) {
-        json_t *el = json_array_get(data, i);
-
-        if (json_unpack_ex (el, &error, 0,
-                            "{s:i, s:s, s:s, s:F, s:i,"
-                            " s:i, s:s, s:i, s:s, s:s, s:i, s:i}",
-                            "userid", &uid,
-                            "bank", &bank,
-                            "def_bank", &def_bank,
-                            "fairshare", &fshare,
-                            "max_running_jobs", &max_running_jobs,
-                            "max_active_jobs", &max_active_jobs,
-                            "queues", &assoc_queues,
-                            "active", &active,
-                            "projects", &assoc_projects,
-                            "def_project", &def_project,
-                            "max_nodes", &max_nodes,
-                            "max_cores", &max_cores) < 0)
-            flux_log (h, LOG_ERR, "mf_priority unpack: %s", error.text);
-
-        Association *b;
-        b = &users[uid][bank];
-
-        b->bank_name = bank;
-        b->fairshare = fshare;
-        b->max_run_jobs = max_running_jobs;
-        b->max_active_jobs = max_active_jobs;
-        b->active = active;
-        b->def_project = def_project;
-        b->max_nodes = max_nodes;
-        b->max_cores = max_cores;
-
-        // split queues comma-delimited string and add it to b->queues vector
-        b->queues.clear ();
-        if (has_text (assoc_queues))
-            split_string_and_push_back (assoc_queues, b->queues);
-        // do the same thing for the association's projects
-        b->projects.clear ();
-        if (has_text (assoc_projects))
-            split_string_and_push_back (assoc_projects, b->projects);
-
-        users_def_bank[uid] = def_bank;
+    if (load_associations (data, users, users_def_bank) < 0) {
+        flux_log (h, LOG_ERR, "unable to unpack association data");
+        goto error;    
     }
 
     if (flux_respond (h, msg, NULL) < 0)
@@ -600,12 +554,7 @@ static void rec_q_cb (flux_t *h,
                       const flux_msg_t *msg,
                       void *arg)
 {
-    char *queue = NULL;
-    int min_nodes_per_job, max_nodes_per_job, max_time_per_job, priority = 0;
-    int max_running_jobs, max_nodes_per_assoc = 0;
-    json_t *data, *jtemp = NULL;
-    json_error_t error;
-    int num_data = 0;
+    json_t *data = NULL;
 
     if (flux_request_unpack (msg, NULL, "{s:o}", "data", &data) < 0) {
         flux_log_error (h, "failed to unpack custom_priority.trigger msg");
@@ -616,35 +565,11 @@ static void rec_q_cb (flux_t *h,
         flux_log (h, LOG_ERR, "mf_priority: invalid queue info payload");
         goto error;
     }
-    num_data = json_array_size (data);
 
-    // clear queues map
-    queues.clear ();
-
-    for (int i = 0; i < num_data; i++) {
-        json_t *el = json_array_get(data, i);
-
-        if (json_unpack_ex (el, &error, 0,
-                            "{s:s, s:i, s:i, s:i, s:i, s:i, s:i}",
-                            "queue", &queue,
-                            "min_nodes_per_job", &min_nodes_per_job,
-                            "max_nodes_per_job", &max_nodes_per_job,
-                            "max_time_per_job", &max_time_per_job,
-                            "priority", &priority,
-                            "max_running_jobs", &max_running_jobs,
-                            "max_nodes_per_assoc", &max_nodes_per_assoc) < 0)
-            flux_log (h, LOG_ERR, "mf_priority unpack: %s", error.text);
-
-        Queue *q;
-        q = &queues[queue];
-
-        q->name = queue;
-        q->min_nodes_per_job = min_nodes_per_job;
-        q->max_nodes_per_job = max_nodes_per_job;
-        q->max_time_per_job = max_time_per_job;
-        q->priority = priority;
-        q->max_running_jobs = max_running_jobs;
-        q->max_nodes_per_assoc = max_nodes_per_assoc;
+    if (load_queues (data, queues) < 0) {
+        flux_log (h, LOG_ERR, "unable to unpack queue data");
+        std::cout << "unable to unpack queue data" << std::endl;
+        goto error; 
     }
 
     if (flux_respond (h, msg, NULL) < 0)
@@ -664,12 +589,7 @@ static void rec_proj_cb (flux_t *h,
                          const flux_msg_t *msg,
                          void *arg)
 {
-    char *project = NULL;
-    json_t *data, *jtemp = NULL;
-    json_error_t error;
-    int num_data = 0;
-    size_t index;
-    json_t *el;
+    json_t *data = NULL;
 
     if (flux_request_unpack (msg, NULL, "{s:o}", "data", &data) < 0) {
         flux_log_error (h, "failed to unpack custom_priority.trigger msg");
@@ -680,17 +600,10 @@ static void rec_proj_cb (flux_t *h,
         flux_log (h, LOG_ERR, "mf_priority: invalid project info payload");
         goto error;
     }
-    num_data = json_array_size (data);
-
-    // clear the projects vector
-    projects.clear ();
-
-    json_array_foreach (data, index, el) {
-        if (json_unpack_ex (el, &error, 0, "{s:s}", "project", &project) < 0) {
-            flux_log (h, LOG_ERR, "mf_priority unpack: %s", error.text);
-            goto error;
-        }
-        projects.push_back (project);
+    
+    if (load_projects (data, projects) < 0) {
+        flux_log (h, LOG_ERR, "unable to unpack project data");
+        goto error; 
     }
 
     if (flux_respond (h, msg, NULL) < 0)
@@ -711,13 +624,7 @@ static void rec_bank_cb (flux_t *h,
                          const flux_msg_t *msg,
                          void *arg)
 {
-    char *bank_name = NULL;
-    double priority = 0.0;
-    json_t *data, *jtemp = NULL;
-    json_error_t error;
-    int num_data = 0;
-    size_t index;
-    json_t *el;
+    json_t *data = NULL;
 
     if (flux_request_unpack (msg, NULL, "{s:o}", "data", &data) < 0) {
         flux_log_error (h, "failed to unpack custom_priority.trigger msg");
@@ -728,25 +635,10 @@ static void rec_bank_cb (flux_t *h,
         flux_log (h, LOG_ERR, "mf_priority: invalid bank info payload");
         goto error;
     }
-    num_data = json_array_size (data);
 
-    // clear the banks map
-    banks.clear ();
-
-    for (int i = 0; i < num_data; i++) {
-        json_t *el = json_array_get(data, i);
-
-        if (json_unpack_ex (el, &error, 0,
-                            "{s:s, s:F}",
-                            "bank", &bank_name,
-                            "priority", &priority) < 0)
-            flux_log (h, LOG_ERR, "mf_priority unpack: %s", error.text);
-
-        Bank *b;
-        b = &banks[bank_name];
-
-        b->name = bank_name;
-        b->priority = priority;
+    if (load_banks (data, banks) < 0) {
+        flux_log (h, LOG_ERR, "unable to unpack bank data");
+        goto error; 
     }
 
     if (flux_respond (h, msg, NULL) < 0)
