@@ -125,6 +125,8 @@ AS_VAR_SET(fluxpydir, $pyexecdir/fluxacct)
 AC_SUBST(fluxpydir)
 AS_VAR_SET(acctpydir, $fluxpydir/accounting)
 AC_SUBST(acctpydir)
+AS_VAR_SET(jobdatapydir, $fluxpydir/data)
+AC_SUBST(jobdatapydir)
 
 adl_RECURSIVE_EVAL([$localstatedir], acct_db_path)
 AS_VAR_SET(acct_db_path, $acct_db_path)
@@ -149,9 +151,12 @@ AC_CONFIG_FILES([Makefile
   src/bindings/python/fluxacct/Makefile
   src/bindings/python/fluxacct/accounting/Makefile
   src/bindings/python/fluxacct/accounting/__init__.py
+  src/bindings/python/fluxacct/data/Makefile
+  src/bindings/python/fluxacct/data/__init__.py
   src/plugins/Makefile
   etc/Makefile
   etc/flux-accounting.service
+  etc/flux-data.service
   doc/Makefile
   doc/test/Makefile
   t/Makefile

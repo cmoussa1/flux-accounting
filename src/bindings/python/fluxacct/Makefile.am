@@ -1,4 +1,4 @@
-SUBDIRS = accounting
+SUBDIRS = accounting data
 
 install-data-hook:
 	$(AM_V_at)echo Linking python modules in non-standard location... && \

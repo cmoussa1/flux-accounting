@@ -1,0 +1,3 @@
+DB_DIR = "@X_LOCALSTATEDIR@/lib/flux/"
+DB_PATH = "@X_LOCALSTATEDIR@/lib/flux/FluxJobs.db"
+DB_SCHEMA_VERSION = 1
