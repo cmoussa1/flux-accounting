@@ -29,6 +29,8 @@ extern "C" {
 #include <vector>
 #include <sstream>
 #include <cstdint>
+#include <chrono>
+#include <iostream>
 
 // custom Association class file
 #include "accounting.hpp"
@@ -47,6 +49,7 @@ extern "C" {
 #define DEFAULT_QUEUE_WEIGHT 10000
 #define DEFAULT_BANK_WEIGHT 0
 #define DEFAULT_URGENCY_WEIGHT 1000
+#define DEFAULT_AGE_WEIGHT 0
 
 std::map<int, std::map<std::string, Association>> users;
 std::map<std::string, Queue> queues;
@@ -54,6 +57,8 @@ std::map<std::string, Bank> banks;
 std::map<int, std::string> users_def_bank;
 std::vector<std::string> projects;
 std::map<std::string, int> priority_weights;
+std::map<flux_jobid_t,
+         std::chrono::time_point<std::chrono::system_clock>> released_jobs;
 
 /******************************************************************************
  *                                                                            *
@@ -62,6 +67,76 @@ std::map<std::string, int> priority_weights;
  *****************************************************************************/
 
 /*
+ * Calculate the age of a job given a job ID. If the job does not have an
+ * "age", just return 0.0 since it will not be factored into the priority
+ * calculation of a job.
+ */
+double calculate_job_age (long int jobid, double prev_age) {
+    double age_factor = 0.0;
+
+    auto it = released_jobs.find (jobid);
+    if (it != released_jobs.end ()) {
+        // job has an "age" associated with it; fetch the timestamp
+        auto t_released = it->second;
+        // get current time
+        auto t_now = std::chrono::system_clock::now();
+        // calculate age of job
+        age_factor = std::chrono::duration<double>
+            (t_now - t_released).count ();
+    }
+    // add any previously calculated age
+    age_factor += prev_age;
+
+    return age_factor;
+}
+
+
+/*
+ * Calculate and store the age of a job up to this point. This covers the
+ * scenario where a job that was accumulating age should no longer do so due
+ * to a controlled reason (such as the job being held by the user with an
+ * urgency update).
+ */
+int check_and_pack_previous_age (flux_plugin_t *p, flux_t *h, long int jobid)
+{
+    std::chrono::time_point<std::chrono::system_clock> t_now;
+    auto it = released_jobs.find (jobid);
+    if (it != released_jobs.end ()) {
+        double *prev_age = static_cast<double *> (malloc (sizeof (double)));
+        if (!prev_age) {
+            errno = ENOMEM;
+            return -1;
+        }
+
+        // attempt to fetch any previously-accumulated age of the job and add it
+        double *total_age = static_cast<double *> (flux_jobtap_job_aux_get (
+                                                    p,
+                                                    jobid,
+                                                    "mf_priority:prev_age"));
+        if (total_age != NULL)
+            *prev_age += *total_age;
+
+        // calculate the age of the job up to this point
+        t_now = std::chrono::system_clock::now();
+        *prev_age += std::chrono::duration<double>
+            (t_now - released_jobs[jobid]).count ();
+
+        // erase entry in released_jobs map (since the job's age will be reset)
+        released_jobs.erase (jobid);
+
+        if (flux_jobtap_job_aux_set (p,
+                                     jobid,
+                                     "mf_priority:prev_age",
+                                     prev_age,
+                                     free) < 0)
+            flux_log_error (h, "flux_jobtap_job_aux_set");
+    }
+
+    return 0;
+}
+
+
+ /*
  * Calculate a user's job priority using the following factors:
  *
  * fairshare: the ratio between the amount of resources allocated vs. resources
@@ -74,18 +149,34 @@ std::map<std::string, int> priority_weights;
  *
  * bank: a factor that can further affect the priority of a job based on the
  *     bank the job is submitted under.
+ * 
+ * age: a factor that considers the time that a job was released to the
+ *     scheduler to be run but could not due to another constraint (e.g a
+ *     resource constraint). Any urgency, priority, or jobspec-update event
+ *     posted to a job in SCHED state will transition the job back to
+ *     PRIORITY. After the priority of the job is calculated, the job will
+ *     be transitioned back to SCHED state and the job's "t_released"
+ *     timestamp will be updated to reflect this most recent transition. This
+ *     is to prevent users from purposely holding their jobs while they are in
+ *     SCHED state and artificially boosting their job's priority.
  */
-int64_t priority_calculation (flux_plugin_t *p, int urgency)
+int64_t priority_calculation (flux_plugin_t *p,
+                              int urgency,
+                              flux_jobid_t jobid)
 {
-    double fshare_factor = 0.0, priority = 0.0, bank_factor = 0.0;
+    double fshare_factor = 0.0, priority = 0.0, bank_factor, age_factor = 0.0;
     int queue_factor = 0;
-    int fshare_weight, queue_weight, bank_weight, urgency_weight;
+    double age = 0.0;
+    int fshare_weight, queue_weight, bank_weight, urgency_weight, age_weight;
     Association *b;
+
+    std::cout << "calculating age for job: " << jobid << std::endl;
 
     fshare_weight = priority_weights["fairshare"];
     queue_weight = priority_weights["queue"];
     bank_weight = priority_weights["bank"];
     urgency_weight = priority_weights["urgency"];
+    age_weight = priority_weights["age"];
 
     if (urgency == FLUX_JOB_URGENCY_HOLD)
         return FLUX_JOB_PRIORITY_MIN;
@@ -105,6 +196,22 @@ int64_t priority_calculation (flux_plugin_t *p, int urgency)
         return -1;
     }
 
+    double *prev_age = static_cast<double *> (flux_jobtap_job_aux_get (
+                                                    p,
+                                                    FLUX_JOBTAP_CURRENT_JOB,
+                                                    "mf_priority:prev_age"));
+    if (prev_age != NULL) {
+        // factor in any previously-accumulated age to the calculation of
+        // the age factor for this job
+        std::cout << "this job accumulated age: " << *prev_age << std::endl;
+        age += *prev_age;
+    } else {
+        std::cout << "did not find any age for this job" << std::endl;
+    }
+
+    age_factor = calculate_job_age (jobid, age);
+    std::cout << "age weight: " << age_weight << std::endl;
+    std::cout << "age factor: " << age_factor << std::endl;
     fshare_factor = b->fairshare;
     queue_factor = b->queue_factor;
     bank_factor = b->bank_factor;
@@ -125,6 +232,7 @@ int64_t priority_calculation (flux_plugin_t *p, int urgency)
     priority = round ((fshare_weight * fshare_factor) +
                       (queue_weight * queue_factor) +
                       (bank_weight * bank_factor) +
+                      (age_weight * age_factor) +
                       (urgency_weight * (urgency - FLUX_JOB_URGENCY_DEFAULT)));
 
     if (priority < 0)
@@ -765,6 +873,8 @@ static void reprior_cb (flux_t *h,
 {
     flux_plugin_t *p = (flux_plugin_t*) arg;
 
+    std::cout << "REPRIORITIZING JOBS" << std::endl;
+
     if (flux_jobtap_reprioritize_all (p) < 0)
         goto error;
     if (flux_respond (h, msg, NULL) < 0)
@@ -805,11 +915,13 @@ static int priority_cb (flux_plugin_t *p,
     const char *project = NULL;
     int64_t priority;
     Association *b;
+    flux_jobid_t jobid;
 
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:i, s:i, s{s{s{s?s, s?s, s?s}}}}",
+                                "{s:I, s:i, s:i, s{s{s{s?s, s?s, s?s}}}}",
+                                "id", &jobid,
                                 "urgency", &urgency,
                                 "userid", &userid,
                                 "jobspec", "attributes", "system",
@@ -826,6 +938,20 @@ static int priority_cb (flux_plugin_t *p,
                                                     p,
                                                     FLUX_JOBTAP_CURRENT_JOB,
                                                     "mf_priority:bank_info"));
+
+    if (urgency == 0) {
+        // the job is being held; if the job was accumulating an age up to this
+        // point, we need to store this age and no longer consider age a factor
+        // until this job is updated to have an urgency > 0
+        if (check_and_pack_previous_age (p, h, jobid) < 0) {
+            flux_jobtap_raise_exception (p,
+                                         FLUX_JOBTAP_CURRENT_JOB,
+                                         "mf_priority",
+                                         0,
+                                         "failed to pack prev_age for job");
+            return -1;
+        }
+    }
 
     if (b == nullptr || b->max_run_jobs == BANK_INFO_MISSING) {
         /*
@@ -908,7 +1034,7 @@ static int priority_cb (flux_plugin_t *p,
         }
     }
 
-    priority = priority_calculation (p, urgency);
+    priority = priority_calculation (p, urgency, jobid);
 
     if (flux_plugin_arg_pack (args,
                               FLUX_PLUGIN_ARG_OUT,
@@ -1347,6 +1473,43 @@ error:
 }
 
 
+/*
+ * When a job gets to the job.state.sched state, generate a timestamp to be
+ * associated with the job in the case that it is eligible to be run but
+ * cannot (e.g due to resource constraints). The timestamp will be used
+ * to calculate the "age" of a job and increase its priority according to
+ * the time it has been waiting to run.
+ */
+static int sched_cb (flux_plugin_t *p,
+                     const char *topic,
+                     flux_plugin_arg_t *args,
+                     void *data)
+{
+    int urgency = 0;
+    long int jobid;
+    std::chrono::time_point<std::chrono::system_clock> t_released;
+    flux_t *h = flux_jobtap_get_flux (p);
+
+    // unpack urgency
+    if (flux_plugin_arg_unpack (args,
+                                FLUX_PLUGIN_ARG_IN,
+                                "{s:I, s:i}",
+                                "id", &jobid,
+                                "urgency", &urgency) < 0)
+        return flux_jobtap_error (p, args, "unable to unpack urgency");
+
+    if (urgency > 0) {
+        // the job is not being held, and therefore we need to get the current
+        // time to keep track of how long the job has been released and waiting
+        t_released = std::chrono::system_clock::now();
+        // store job id, t_released in map
+        released_jobs[jobid] = t_released;
+    }
+
+    return 0;
+}
+
+
 static int run_cb (flux_plugin_t *p,
                    const char *topic,
                    flux_plugin_arg_t *args,
@@ -1432,11 +1595,13 @@ static int job_updated (flux_plugin_t *p,
     char *updated_queue = NULL;
     char *updated_bank = NULL;
     Association *a;
+    flux_jobid_t jobid;
 
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s:i, s{s{s{s?s}}}, s:{s?s, s?s}}",
+                                "{s:I, s:i, s{s{s{s?s}}}, s:{s?s, s?s}}",
+                                "id", &jobid,
                                 "userid", &userid,
                                 "jobspec", "attributes", "system", "bank",
                                 &bank,
@@ -1501,6 +1666,16 @@ static int job_updated (flux_plugin_t *p,
         // associated with this queue and assign it to the Association object
         // associated with the job
         a->queue_factor = get_queue_info (updated_queue, a->queues, queues);
+
+    // the job was updated to either run under a new bank or new queue; reset
+    // the age of the job
+    released_jobs.erase (jobid);
+    if (flux_jobtap_job_aux_set (p,
+                                 jobid,
+                                 "mf_priority:prev_age",
+                                 NULL,
+                                 NULL) < 0)
+        flux_log_error (h, "flux_jobtap_job_aux_set");
 
     return 0;
 }
@@ -1718,6 +1893,10 @@ static int inactive_cb (flux_plugin_t *p,
             goto error;
     }
 
+    // if the job had an "age" associated with it, remove it from the map that
+    // stores its ID and t_released timestamp
+    released_jobs.erase (jobid);
+
     return 0;
 error:
     flux_jobtap_raise_exception (p,
@@ -1738,6 +1917,7 @@ static const struct flux_plugin_handler tab[] = {
     { "job.state.inactive", inactive_cb, NULL },
     { "job.state.depend", depend_cb, NULL },
     { "job.update", job_updated, NULL},
+    { "job.state.sched", sched_cb, NULL},
     { "job.state.run", run_cb, NULL},
     { "plugin.query", query_cb, NULL},
     { "job.update.attributes.system.queue", update_queue_cb, NULL },
@@ -1798,6 +1978,9 @@ extern "C" int flux_plugin_init (flux_plugin_t *p)
     priority_weights["queue"] = DEFAULT_QUEUE_WEIGHT;
     priority_weights["bank"] = DEFAULT_BANK_WEIGHT;
     priority_weights["urgency"] = DEFAULT_URGENCY_WEIGHT;
+    // priority_weights["age"] = DEFAULT_AGE_WEIGHT;
+
+    std::cout << "priority_weights['age']" << priority_weights["age"] << std::endl;
 
     return 0;
 }

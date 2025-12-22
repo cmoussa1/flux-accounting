@@ -255,6 +255,10 @@ def create_db(
         f"INSERT INTO priority_factor_weight_table "
         f"VALUES ('urgency', {fluxacct.accounting.URGENCY_WEIGHT_DEFAULT});"
     )
+    conn.execute(
+        f"INSERT INTO priority_factor_weight_table "
+        f"VALUES ('age', {fluxacct.accounting.AGE_WEIGHT_DEFAULT});"
+    )
     conn.commit()
 
     conn.close()

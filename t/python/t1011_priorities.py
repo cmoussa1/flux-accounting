@@ -67,6 +67,7 @@ class TestAccountingCLI(unittest.TestCase):
         self.assertIn('"weight": 10000', test)
         self.assertIn('"factor": "bank"', test)
         self.assertIn('"weight": 0', test)
+        self.assertIn('"factor": "age"', test)
 
     # list all of the factors in the table with no weight
     def test_07_list_factors_custom(self):
@@ -75,6 +76,7 @@ class TestAccountingCLI(unittest.TestCase):
             """\
         factor   
         ---------
+        age      
         bank     
         fairshare
         queue    

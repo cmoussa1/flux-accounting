@@ -9,6 +9,7 @@
 \************************************************************/
 
 #include "accounting.hpp"
+#include <iostream>
 
 Association* get_association (int userid,
                               const char *bank,
@@ -622,6 +623,8 @@ int load_priority_factors (json_t *data,
                             "{s:s, s:I}",
                             "factor", &factor,
                             "weight", &weight) < 0) {
+            std::cout << "factor: " << factor << std::endl;
+            std::cout << "weight: " << weight << std::endl;
             if (errmsg)
                 *errmsg = error.text;
             return -1;
