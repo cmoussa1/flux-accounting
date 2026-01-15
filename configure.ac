@@ -35,6 +35,14 @@ AX_VALGRIND_H
 AX_CODE_COVERAGE
 PKG_CHECK_MODULES([SQLITE], [sqlite3], [], [])
 PKG_CHECK_MODULES([JANSSON], [jansson >= 2.10], [], [])
+PKG_CHECK_MODULES([BASH_COMPLETION], [bash-completion], [
+    bashcompdir="`$PKG_CONFIG \
+        --define-variable=datadir=${datadir} \
+        --variable=completionsdir bash-completion`"
+], [
+    bashcompdir="${datadir}/bash-completion/completions"
+])
+AC_SUBST(bashcompdir)
 
 if test "$GCC" = yes; then
   WARNING_CFLAGS="-Wall -Werror -Werror=missing-field-initializers -Wno-error=deprecated-declarations"

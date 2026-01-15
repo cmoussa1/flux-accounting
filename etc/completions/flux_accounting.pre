@@ -1,0 +1,1004 @@
+#
+# Copyright 2026 Lawrence Livermore National Security, LLC
+# (c.f. AUTHORS, NOTICE.LLNS, COPYING)
+#
+# This file is part of the Flux resource manager framework.
+# For details, see https://github.com/flux-framework.
+#
+# SPDX-License-Identifier: LGPL-3.0
+#
+shopt -s extglob
+
+# Lifted from bash_completions:
+# For a longopt --foo=bar, set $prev=--foo and $cur=bar.
+_flux_account_split_longopt() {
+    if [[ $cur == --?*=* ]]; then
+        # Cut also backslash before '=' in case it ended up there
+        # for some reason
+        prev="${cur%%?(\\)=*}"
+        cur="${cur#*=}"
+        return 0
+    fi
+    return 1
+}
+
+# return success if first argument is in remaining args
+_flux_account_contains_word() {
+    local w word=$1; shift
+    for w in "$@"; do
+        [[ $w = "$word" ]] && return
+    done
+}
+
+# Determines the first non-option word of the command line. This
+# is usually the command. Returns empty string if first non-option
+# word is $cur, since that means we're still completing the command.
+#
+_flux_account_get_cmd() {
+    local firstword i
+
+    firstword=
+    for ((i = 1; i < ${#COMP_WORDS[@]}; ++i)); do
+        if [[ ${COMP_WORDS[i]} != -* && ${COMP_WORDS[i]} != $cur ]]; then
+            firstword=${COMP_WORDS[i]}
+            break
+        fi
+    done
+
+    echo $firstword
+}
+
+# flux-account view-user completions
+_flux_account_view_user() {
+    local cmd=$1 split=false
+    local OPTS="\
+        --parsable \
+        --list-banks \
+        -o --format= \
+        --fields= \
+        -J --job-usage \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        --format | -!(-*)o | --fields)
+            return
+            ;;
+    esac
+    $split && return
+
+    if [[ $cur != -* ]]; then
+        # Could potentially auto-complete usernames here
+        compopt -o default
+    fi
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account list-users completions
+_flux_account_list_users() {
+    local cmd=$1 split=false
+    local OPTS="\
+        -f --fields= \
+        -j --json \
+        -o --format= \
+        --active= \
+        -B --bank= \
+        --shares= \
+        --max-running-jobs= \
+        --max-active-jobs= \
+        -N --max-nodes= \
+        -c --max-cores= \
+        -q --queues= \
+        -P --projects= \
+        --default-project= \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        --format | --fields | -!(-*)[fo])
+            return
+            ;;
+    esac
+    $split && return
+
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account add-user completions
+_flux_account_add_user() {
+    local cmd=$1 split=false
+    local OPTS="\
+        -u --username= \
+        -i --userid= \
+        -B --bank= \
+        --shares= \
+        --fairshare= \
+        --max-running-jobs= \
+        --max-active-jobs= \
+        -N --max-nodes= \
+        -c --max-cores= \
+        -q --queues= \
+        -P --projects= \
+        --default-project= \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        -!(-*)[uiBNcqP] | --username | --userid | --bank | --shares | \
+        --fairshare | --max-running-jobs | --max-active-jobs | --max-nodes | \
+        --max-cores | --queues | --projects | --default-project)
+            return
+            ;;
+    esac
+    $split && return
+
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account delete-user completions
+_flux_account_delete_user() {
+    local cmd=$1
+    local OPTS="\
+        --force \
+    "
+    if [[ $cur != -* ]]; then
+        compopt -o default
+    fi
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    return 0
+}
+
+# flux-account edit-user completions
+_flux_account_edit_user() {
+    local cmd=$1 split=false
+    local OPTS="\
+        -B --bank= \
+        -i --userid= \
+        --default-bank= \
+        --shares= \
+        --fairshare= \
+        --max-running-jobs= \
+        --max-active-jobs= \
+        -N --max-nodes= \
+        -c --max-cores= \
+        -q --queues= \
+        -P --projects= \
+        --default-project= \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        -!(-*)[BiNcqP])
+            return
+            ;;
+    esac
+    $split && return
+
+    if [[ $cur != -* ]]; then
+        compopt -o default
+    fi
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account edit-all-users completions
+_flux_account_edit_all_users() {
+    local cmd=$1 split=false
+    local OPTS="\
+        --bank= \
+        --default-bank= \
+        --shares= \
+        --fairshare= \
+        --max-running-jobs= \
+        --max-active-jobs= \
+        --max-nodes= \
+        --max-cores= \
+        --queues= \
+        --projects= \
+        --default-project= \
+    "
+    _flux_account_split_longopt && split=true
+    $split && return
+
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account view-job-records completions
+_flux_account_view_job_records() {
+    local cmd=$1 split=false
+    local OPTS="\
+        -u --user= \
+        -j --jobid= \
+        -a --after-start-time= \
+        -b --before-end-time= \
+        --project= \
+        -B --bank= \
+        -d --requested-duration= \
+        -e --actual-duration= \
+        -D --duration-delta= \
+        -o --format= \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        -!(-*)[ujabBdeoD])
+            return
+            ;;
+    esac
+    $split && return
+
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account create-db completions
+_flux_account_create_db() {
+    local cmd=$1 split=false
+    local OPTS="\
+        --priority-usage-reset-period= \
+        --priority-decay-half-life= \
+    "
+    _flux_account_split_longopt && split=true
+    $split && return
+
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account add-bank completions
+_flux_account_add_bank() {
+    local cmd=$1 split=false
+    local OPTS="\
+        --parent-bank= \
+        --priority= \
+    "
+    _flux_account_split_longopt && split=true
+    $split && return
+
+    if [[ $cur != -* ]]; then
+        compopt -o default
+    fi
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account view-bank completions
+_flux_account_view_bank() {
+    local cmd=$1 split=false
+    local OPTS="\
+        -t --tree \
+        -u --users \
+        -P --parsable \
+        --fields= \
+        -o --format= \
+        -c --concise \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        --fields | --format | -!(-*)o)
+            return
+            ;;
+    esac
+    $split && return
+
+    if [[ $cur != -* ]]; then
+        compopt -o default
+    fi
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account delete-bank completions
+_flux_account_delete_bank() {
+    local cmd=$1
+    local OPTS="\
+        --force \
+    "
+    if [[ $cur != -* ]]; then
+        compopt -o default
+    fi
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    return 0
+}
+
+# flux-account edit-bank completions
+_flux_account_edit_bank() {
+    local cmd=$1 split=false
+    local OPTS="\
+        --shares= \
+        --parent-bank= \
+        --priority= \
+    "
+    _flux_account_split_longopt && split=true
+    $split && return
+
+    if [[ $cur != -* ]]; then
+        compopt -o default
+    fi
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account list-banks completions
+_flux_account_list_banks() {
+    local cmd=$1 split=false
+    local OPTS="\
+        --inactive \
+        --fields= \
+        --json \
+        -o --format= \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        --fields | --format | -!(-*)o)
+            return
+            ;;
+    esac
+    $split && return
+
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account update-usage completions
+_flux_account_update_usage() {
+    local cmd=$1 split=false
+    local OPTS="\
+        --priority-decay-half-life= \
+    "
+    _flux_account_split_longopt && split=true
+    $split && return
+
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account add-queue completions
+_flux_account_add_queue() {
+    local cmd=$1 split=false
+    local OPTS="\
+        --min-nodes-per-job= \
+        -N --max-nodes-per-job= \
+        -t --max-time-per-job= \
+        -P --priority= \
+        --max-running-jobs= \
+        --max-nodes-per-assoc= \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        -!(-*)[NtP])
+            return
+            ;;
+    esac
+    $split && return
+
+    if [[ $cur != -* ]]; then
+        compopt -o default
+    fi
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account view-queue completions
+_flux_account_view_queue() {
+    local cmd=$1 split=false
+    local OPTS="\
+        --parsable \
+        -o --format= \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        --format | -!(-*)o)
+            return
+            ;;
+    esac
+    $split && return
+
+    if [[ $cur != -* ]]; then
+        compopt -o default
+    fi
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account edit-queue completions
+_flux_account_edit_queue() {
+    local cmd=$1 split=false
+    local OPTS="\
+        --min-nodes-per-job= \
+        -N --max-nodes-per-job= \
+        -t --max-time-per-job= \
+        -P --priority= \
+        --max-running-jobs= \
+        --max-nodes-per-assoc= \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        -!(-*)[NtP])
+            return
+            ;;
+    esac
+    $split && return
+
+    if [[ $cur != -* ]]; then
+        compopt -o default
+    fi
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account delete-queue completions
+_flux_account_delete_queue() {
+    local cmd=$1
+    if [[ $cur != -* ]]; then
+        compopt -o default
+    fi
+    COMPREPLY=( $(compgen -W "-h --help" -- "$cur") )
+    return 0
+}
+
+# flux-account add-project completions
+_flux_account_add_project() {
+    local cmd=$1
+    if [[ $cur != -* ]]; then
+        compopt -o default
+    fi
+    COMPREPLY=( $(compgen -W "-h --help" -- "$cur") )
+    return 0
+}
+
+# flux-account view-project completions
+_flux_account_view_project() {
+    local cmd=$1 split=false
+    local OPTS="\
+        --parsable \
+        -o --format= \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        --format | -!(-*)o)
+            return
+            ;;
+    esac
+    $split && return
+
+    if [[ $cur != -* ]]; then
+        compopt -o default
+    fi
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account delete-project completions
+_flux_account_delete_project() {
+    local cmd=$1
+    if [[ $cur != -* ]]; then
+        compopt -o default
+    fi
+    COMPREPLY=( $(compgen -W "-h --help" -- "$cur") )
+    return 0
+}
+
+# flux-account list-projects completions
+_flux_account_list_projects() {
+    local cmd=$1 split=false
+    local OPTS="\
+        --fields= \
+        --json \
+        -o --format= \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        --fields | --format | -!(-*)o)
+            return
+            ;;
+    esac
+    $split && return
+
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account scrub-old-jobs completions
+_flux_account_scrub_old_jobs() {
+    local cmd=$1
+    if [[ $cur != -* ]]; then
+        compopt -o default
+    fi
+    COMPREPLY=( $(compgen -W "-h --help" -- "$cur") )
+    return 0
+}
+
+# flux-account export-db completions
+_flux_account_export_db() {
+    local cmd=$1 split=false
+    local OPTS="\
+        -u --users= \
+        -b --banks= \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        --users | --banks | -!(-*)[ub])
+            compopt -o filenames
+            COMPREPLY=( $(compgen -f -- "$cur") )
+            return
+            ;;
+    esac
+    $split && return
+
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account pop-db completions
+_flux_account_pop_db() {
+    local cmd=$1 split=false
+    local OPTS="\
+        -u --users= \
+        -b --banks= \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        --users | --banks | -!(-*)[ub])
+            compopt -o filenames
+            COMPREPLY=( $(compgen -f -- "$cur") )
+            return
+            ;;
+    esac
+    $split && return
+
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account list-queues completions
+_flux_account_list_queues() {
+    local cmd=$1 split=false
+    local OPTS="\
+        --fields= \
+        --json \
+        -o --format= \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        --fields | --format | -!(-*)o)
+            return
+            ;;
+    esac
+    $split && return
+
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account view-factor completions
+_flux_account_view_factor() {
+    local cmd=$1 split=false
+    local OPTS="\
+        --json \
+        -o --format= \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        --format | -!(-*)o)
+            return
+            ;;
+    esac
+    $split && return
+
+    if [[ $cur != -* ]]; then
+        COMPREPLY=( $(compgen -W "fairshare queue bank urgency" -- "$cur") )
+        return 0
+    fi
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account edit-factor completions
+_flux_account_edit_factor() {
+    local cmd=$1 split=false
+    local OPTS="\
+        --factor= \
+        --weight= \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        --factor)
+            COMPREPLY=( $(compgen -W "fairshare queue bank urgency" -- "$cur") )
+            return
+            ;;
+        --weight)
+            return
+            ;;
+    esac
+    $split && return
+
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account list-factors completions
+_flux_account_list_factors() {
+    local cmd=$1 split=false
+    local OPTS="\
+        --fields= \
+        --json \
+        -o --format= \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        --fields | --format | -!(-*)o)
+            return
+            ;;
+    esac
+    $split && return
+
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account reset-factors completions
+_flux_account_reset_factors() {
+    local cmd=$1
+    COMPREPLY=( $(compgen -W "-h --help" -- "$cur") )
+    return 0
+}
+
+# flux-account jobs completions
+_flux_account_jobs() {
+    local cmd=$1 split=false
+    local OPTS="\
+        --bank= \
+        --queue= \
+        -o --format= \
+        -f --filter= \
+        -c --count= \
+        --since= \
+        -j --jobids= \
+        -v --verbose \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        --bank | --queue | --format | --filter | --count | --since | -!(-*)[ofcj])
+            return
+            ;;
+    esac
+    $split && return
+
+    if [[ $cur != -* ]]; then
+        compopt -o default
+    fi
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account show-usage completions
+_flux_account_show_usage() {
+    local cmd=$1 split=false
+    local OPTS="\
+        -n --limit= \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        --limit | -!(-*)n)
+            return
+            ;;
+    esac
+    $split && return
+
+    if [[ $cur != -* ]]; then
+        COMPREPLY=( $(compgen -W "associations banks" -- "$cur") )
+        return 0
+    fi
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+# flux-account sync-userids completions
+_flux_account_sync_userids() {
+    local cmd=$1
+    COMPREPLY=( $(compgen -W "-h --help" -- "$cur") )
+    return 0
+}
+
+# flux-account export-json completions
+_flux_account_export_json() {
+    local cmd=$1
+    COMPREPLY=( $(compgen -W "-h --help" -- "$cur") )
+    return 0
+}
+
+# flux-account view-usage-report completions
+_flux_account_view_usage_report() {
+    local cmd=$1 split=false
+    local OPTS="\
+        -s --start= \
+        -e --end= \
+        -u --username= \
+        -b --bank= \
+        -r --report-type= \
+        -t --time-unit= \
+        -S --job-size-bins= \
+    "
+    _flux_account_split_longopt && split=true
+    case $prev in
+        --report-type | -!(-*)r)
+            COMPREPLY=( $(compgen -W "bybank byuser byassociation" -- "$cur") )
+            return
+            ;;
+        --time-unit | -!(-*)t)
+            COMPREPLY=( $(compgen -W "hour min sec" -- "$cur") )
+            return
+            ;;
+        -!(-*)[seubS])
+            return
+            ;;
+    esac
+    $split && return
+
+    COMPREPLY=( $(compgen -W "${OPTS} -h --help" -- "$cur") )
+    if [[ "${COMPREPLY[@]}" == *= ]]; then
+        compopt -o nospace
+    fi
+    return 0
+}
+
+_flux_account_core()
+{
+    # Debug: write to a log file to verify the function is being called
+    echo "=== COMPLETION CALLED ===" >> /tmp/flux-account-completion.log
+    echo "Date: $(date)" >> /tmp/flux-account-completion.log
+    echo "COMP_WORDS: ${COMP_WORDS[@]}" >> /tmp/flux-account-completion.log
+    echo "COMP_CWORD: $COMP_CWORD" >> /tmp/flux-account-completion.log
+
+    local cur prev cmd
+    local cmds="\
+        view-user \
+        list-users \
+        add-user \
+        delete-user \
+        edit-user \
+        edit-all-users \
+        view-job-records \
+        create-db \
+        add-bank \
+        view-bank \
+        delete-bank \
+        edit-bank \
+        list-banks \
+        update-usage \
+        add-queue \
+        view-queue \
+        edit-queue \
+        delete-queue \
+        add-project \
+        view-project \
+        delete-project \
+        list-projects \
+        scrub-old-jobs \
+        export-db \
+        pop-db \
+        list-queues \
+        view-factor \
+        edit-factor \
+        list-factors \
+        reset-factors \
+        jobs \
+        show-usage \
+        sync-userids \
+        export-json \
+        view-usage-report \
+    "
+    
+    cmd=$(_flux_account_get_cmd)
+
+    if type _get_comp_words_by_ref >/dev/null 2>&1; then
+        _get_comp_words_by_ref -n = cur prev
+    else
+        cur=${COMP_WORDS[COMP_CWORD]}
+        prev=${COMP_WORDS[COMP_CWORD-1]}
+    fi
+
+    # Handle global -p/--path option
+    case $prev in
+        -p | --path)
+            compopt -o filenames
+            COMPREPLY=( $(compgen -f -- "$cur") )
+            return 0
+            ;;
+    esac
+
+    case "${cmd}" in
+    view-user)
+        _flux_account_view_user $cmd
+        ;;
+    list-users)
+        _flux_account_list_users $cmd
+        ;;
+    add-user)
+        _flux_account_add_user $cmd
+        ;;
+    delete-user)
+        _flux_account_delete_user $cmd
+        ;;
+    edit-user)
+        _flux_account_edit_user $cmd
+        ;;
+    edit-all-users)
+        _flux_account_edit_all_users $cmd
+        ;;
+    view-job-records)
+        _flux_account_view_job_records $cmd
+        ;;
+    create-db)
+        _flux_account_create_db $cmd
+        ;;
+    add-bank)
+        _flux_account_add_bank $cmd
+        ;;
+    view-bank)
+        _flux_account_view_bank $cmd
+        ;;
+    delete-bank)
+        _flux_account_delete_bank $cmd
+        ;;
+    edit-bank)
+        _flux_account_edit_bank $cmd
+        ;;
+    list-banks)
+        _flux_account_list_banks $cmd
+        ;;
+    update-usage)
+        _flux_account_update_usage $cmd
+        ;;
+    add-queue)
+        _flux_account_add_queue $cmd
+        ;;
+    view-queue)
+        _flux_account_view_queue $cmd
+        ;;
+    edit-queue)
+        _flux_account_edit_queue $cmd
+        ;;
+    delete-queue)
+        _flux_account_delete_queue $cmd
+        ;;
+    add-project)
+        _flux_account_add_project $cmd
+        ;;
+    view-project)
+        _flux_account_view_project $cmd
+        ;;
+    delete-project)
+        _flux_account_delete_project $cmd
+        ;;
+    list-projects)
+        _flux_account_list_projects $cmd
+        ;;
+    scrub-old-jobs)
+        _flux_account_scrub_old_jobs $cmd
+        ;;
+    export-db)
+        _flux_account_export_db $cmd
+        ;;
+    pop-db)
+        _flux_account_pop_db $cmd
+        ;;
+    list-queues)
+        _flux_account_list_queues $cmd
+        ;;
+    view-factor)
+        _flux_account_view_factor $cmd
+        ;;
+    edit-factor)
+        _flux_account_edit_factor $cmd
+        ;;
+    list-factors)
+        _flux_account_list_factors $cmd
+        ;;
+    reset-factors)
+        _flux_account_reset_factors $cmd
+        ;;
+    jobs)
+        _flux_account_jobs $cmd
+        ;;
+    show-usage)
+        _flux_account_show_usage $cmd
+        ;;
+    sync-userids)
+        _flux_account_sync_userids $cmd
+        ;;
+    export-json)
+        _flux_account_export_json $cmd
+        ;;
+    view-usage-report)
+        _flux_account_view_usage_report $cmd
+        ;;
+    *)
+        # return with no suggestions for unknown subcommands:
+        [[ "$prev" != "flux" && "$prev" != "account" && "$prev" != -* ]] && return
+
+        COMPREPLY=( $(compgen -W "-p --path -h --help ${cmds}" -- "$cur") )
+        ;;
+    esac
+
+    return 0
+}
+
+complete -F _flux_account_core flux-account
+
+# vi: ts=4 sw=4 expandtab
