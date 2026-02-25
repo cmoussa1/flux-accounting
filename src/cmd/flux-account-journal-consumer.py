@@ -11,10 +11,43 @@
 import argparse
 import signal
 import sys
+import json
 
 import flux
 from flux.job import JournalConsumer
 from flux.eventlog import EventLogFormatter
+
+
+def format_jobid(jobid_format, event):
+    """Get job ID in the requested format."""
+    if jobid_format == "f58":
+        return event.jobid.f58
+    return event.jobid.dec
+
+
+def format_event_with_ms_epoch(event, output_format):
+    """
+    Format event with milliseconds-since-epoch timestamp.
+
+    Args:
+        event: The event to format.
+        output_format: Either "json" or "text".
+
+    Returns:
+        str: The formatted event string.
+    """
+    ms_timestamp = int(event.timestamp * 1000)
+    if output_format == "json":
+        event_dict = dict(event)
+        event_dict["timestamp"] = ms_timestamp
+        if not event_dict.get("context"):
+            event_dict.pop("context", None)
+        return json.dumps(event_dict, separators=(",", ":"), ensure_ascii=False)
+    context = ""
+    for key, val in event.context.items():
+        val_str = json.dumps(val, separators=(",", ":"), ensure_ascii=False)
+        context += f" {key}={val_str}"
+    return f"{ms_timestamp} {event.name}{context}"
 
 
 # pylint: disable=broad-except
@@ -37,9 +70,16 @@ def main():
     parser.add_argument(
         "-t",
         "--timestamp-format",
-        choices=["raw", "iso", "offset", "human"],
+        choices=["raw", "iso", "offset", "human", "ms-epoch"],
         default="raw",
         help="Timestamp format (default: raw)",
+    )
+    parser.add_argument(
+        "-j",
+        "--jobid-format",
+        choices=["dec", "f58"],
+        default="dec",
+        help="Job ID format",
     )
     parser.add_argument(
         "--no-history",
@@ -57,9 +97,12 @@ def main():
     flux_handle = flux.Flux()
 
     # create formatter for output
+    formatter_ts_format = (
+        args.timestamp_format if args.timestamp_format != "ms-epoch" else "raw"
+    )
     formatter = EventLogFormatter(
         format=args.format,
-        timestamp_format=args.timestamp_format,
+        timestamp_format=formatter_ts_format,
         color="never",
     )
 
@@ -72,7 +115,7 @@ def main():
 
     # handle Ctrl+C gracefully
     def signal_handler(signum, frame):
-        print("\nStopping consumer...", file=sys.stderr)
+        print("\nStopping consumer...")
         consumer.stop()
         sys.exit(0)
 
@@ -93,15 +136,30 @@ def main():
                     print(event, flush=True)
                 continue
 
-            if args.format == "json":
-                # for JSON format, include jobid
-                print(f'{{"jobid":"{event.jobid.f58}",', end="")
-                print(formatter.format(event)[1:], flush=True)
+            # get job ID in requested format
+            jobid_str = format_jobid(args.jobid_format, event)
+
+            # format and print the event
+            if args.timestamp_format == "ms-epoch":
+                if args.format == "json":
+                    print(f'{{"jobid":"{jobid_str}",', end="")
+                    print(
+                        format_event_with_ms_epoch(event, args.format)[1:], flush=True
+                    )
+                else:
+                    print(
+                        f"{jobid_str}: {format_event_with_ms_epoch(event, args.format)}",
+                        flush=True,
+                    )
             else:
-                # for text format, show jobid and formatted event
-                print(f"{event.jobid.f58}: {formatter.format(event)}", flush=True)
+                if args.format == "json":
+                    # For JSON format, include jobid
+                    print(f'{{"jobid":"{jobid_str}",', end="")
+                    print(formatter.format(event)[1:], flush=True)
+                else:
+                    print(f"{jobid_str}: {formatter.format(event)}", flush=True)
     except Exception as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        print(f"error: {exc}")
         consumer.stop()
         sys.exit(1)
 
