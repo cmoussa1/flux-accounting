@@ -51,6 +51,7 @@ class TestDB(unittest.TestCase):
         # sqlite_sequence is an internal table that SQLite
         # uses to keep track of the largest ROWID
         expected = [
+            "cluster_table",
             "association_table",
             "bank_table",
             "sqlite_sequence",

@@ -52,6 +52,7 @@ test_expect_success 'get all the tables of the old DB and check that new table w
 	flux python ${CHECK_TABLES} -p ${DB_PATHv1} -t > tables.test &&
 	cat <<-EOF >tables.expected
 	sqlite_sequence
+	cluster_table
 	association_table
 	bank_table
 	job_usage_factor_table
@@ -87,6 +88,7 @@ test_expect_success 'get all the columns of the updated table in the DB and chec
 	projects
 	default_project
 	max_sched_jobs
+	cluster
 	organization
 	yrs_experience
 	EOF

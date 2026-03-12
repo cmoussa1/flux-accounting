@@ -89,6 +89,17 @@ def create_db(
     # set version number of database
     conn.execute("PRAGMA user_version = %d" % (fluxacct.accounting.DB_SCHEMA_VERSION))
 
+    # Cluster Table
+    # stores the name of the cluster
+    LOGGER.info("Creating cluster_table in DB...")
+    conn.execute(
+        """
+            CREATE TABLE IF NOT EXISTS cluster_table (
+                cluster text PRIMARY KEY
+            );"""
+    )
+    conn.execute(f"INSERT INTO cluster_table VALUES ('cluster')")
+
     # Association Table
     LOGGER.info("Creating association_table in DB...")
     conn.execute(
@@ -112,7 +123,9 @@ def create_db(
                 projects         tinytext    DEFAULT '*'            NOT NULL    ON CONFLICT REPLACE DEFAULT '*',
                 default_project  tinytext    DEFAULT '*'            NOT NULL    ON CONFLICT REPLACE DEFAULT '*',
                 max_sched_jobs   int(11)     DEFAULT 2147483647     NOT NULL    ON CONFLICT REPLACE DEFAULT 2147483647,
-                PRIMARY KEY   (username, bank)
+                cluster          text    DEFAULT 'cluster'      NOT NULL,
+                PRIMARY KEY   (username, bank, cluster)
+                FOREIGN KEY   (cluster) REFERENCES cluster_table (cluster)
         );"""
     )
     LOGGER.info("Created association_table successfully")

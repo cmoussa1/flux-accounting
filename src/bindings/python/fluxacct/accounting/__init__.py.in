@@ -1,6 +1,6 @@
 DB_DIR = "@X_LOCALSTATEDIR@/lib/flux/"
 DB_PATH = "@X_LOCALSTATEDIR@/lib/flux/FluxAccounting.db"
-DB_SCHEMA_VERSION = 32
+DB_SCHEMA_VERSION = 33
 
 PRIORITY_FACTORS = ["fairshare", "queue", "bank"]
 FSHARE_WEIGHT_DEFAULT = 100000
@@ -29,6 +29,7 @@ ASSOCIATION_TABLE = [
     "projects",
     "default_project",
     "max_sched_jobs",
+    "cluster",
 ]
 BANK_TABLE = [
     "bank_id",
