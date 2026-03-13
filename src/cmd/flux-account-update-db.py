@@ -37,8 +37,6 @@ def est_sqlite_conn(path):
     db_uri = "file:" + path + "?mode=rw"
     try:
         conn = sqlite3.connect(db_uri, uri=True)
-        # set foreign keys constraint
-        conn.execute("PRAGMA foreign_keys = 1")
     except sqlite3.OperationalError as exc:
         print(f"Unable to open database file: {db_uri}", file=sys.stderr)
         print(f"Exception: {exc}")
@@ -269,7 +267,8 @@ def update_db(path, new_db):
                 "PRAGMA user_version = %d" % (fluxacct.accounting.DB_SCHEMA_VERSION)
             )
 
-            # commit changes
+            # re-enable foreign keys constraint and commit changes
+            old_conn.execute("PRAGMA foreign_keys = 1")
             old_conn.commit()
 
             # close connections to DB's and remove temporary database
