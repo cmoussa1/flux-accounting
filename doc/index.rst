@@ -21,4 +21,5 @@ Table of Contents
    components/projects
    components/limits
    components/job-priorities
+   components/centralized-db-design
    index_man

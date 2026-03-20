@@ -108,6 +108,7 @@ EXTRA_DIST = \
 	components/limits.rst \
 	components/job-priorities.rst \
 	components/module-structure.rst \
+	components/centralized-db-design.rst \
 	$(RST_FILES) \
 	man1/index.rst
 
