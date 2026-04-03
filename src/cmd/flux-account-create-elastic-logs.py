@@ -166,7 +166,7 @@ def create_job_dicts(jobs) -> list:
 
         rec["event"]["dataset"] = "flux.joblog"
         rec["schema"] = {}
-        rec["schema"]["version_number"] = 2.2
+        rec["schema"]["version_number"] = 2.3
         # initialize job.node.list
         rec["job"]["node"]["list"] = -1
 
@@ -189,7 +189,6 @@ def create_job_dicts(jobs) -> list:
         rec["job"]["urgency"] = job.get("urgency")
         rec["job"]["success"] = job.get("success")
         rec["job"]["exit_code"] = job.get("waitstatus")
-        rec["job"]["t_submit"] = job.get("t_submit")
         rec["job"]["t_run"] = job.get("t_run")
         rec["job"]["t_inactive"] = job.get("t_inactive")
         rec["job"]["t_cleanup"] = job.get("t_cleanup")
@@ -259,6 +258,11 @@ def create_job_dicts(jobs) -> list:
             if job.get("exception_note") is not None:
                 rec["job"]["exception_note"] = job.get("exception_note")
 
+        # calculate node-hours for job
+        rec["job"]["node-hours"] = (
+            job.get("nnodes") * (rec.get("event").get("duration_seconds") / 3600)
+        )
+
         # add scheduler used
         rec["job"]["scheduler"] = "flux"
 
@@ -308,29 +312,27 @@ def main():
 
     jobs = fetch_new_jobs(args.since)
     job_records = create_job_dicts(jobs)
-    for job in job_records:
-        print(f"job: {job}")
 
-    # if args.output_file is None:
-    #     filename = "flux_jobs.ndjson"
-    # else:
-    #     filename = args.output_file
-    # write_to_file(job_records, filename)
+    if args.output_file is None:
+        filename = "flux_jobs.ndjson"
+    else:
+        filename = args.output_file
+    write_to_file(job_records, filename)
 
-    # try:
-    #     # extract timestamp of the most recently submitted job
-    #     recent_job_timestamp = job_records[-1]["job"]["t_inactive"]
-    # except (IndexError, KeyError, TypeError):
-    #     # default to just writing current time
-    #     recent_job_timestamp = time.time()
-    # # write SUCCESS timestamp
-    # try:
-    #     with open(FLUX_TIMESTAMP_FILE, "w") as fp:
-    #         # write the timestamp of the most recently submitted job
-    #         fp.write(f"{recent_job_timestamp}")
-    # except Exception as exc:
-    #     syslog.syslog(f"error writing timestamp of last seen job: {exc}")
-    #     sys.exit(1)
+    try:
+        # extract timestamp of the most recently submitted job
+        recent_job_timestamp = job_records[-1]["job"]["t_inactive"]
+    except (IndexError, KeyError, TypeError):
+        # default to just writing current time
+        recent_job_timestamp = time.time()
+    # write SUCCESS timestamp
+    try:
+        with open(FLUX_TIMESTAMP_FILE, "w") as fp:
+            # write the timestamp of the most recently submitted job
+            fp.write(f"{recent_job_timestamp}")
+    except Exception as exc:
+        syslog.syslog(f"error writing timestamp of last seen job: {exc}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
