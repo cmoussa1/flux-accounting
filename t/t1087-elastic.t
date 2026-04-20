@@ -58,10 +58,6 @@ test_expect_success 'run fetch-job-records script' '
 	flux account-create-elastic-logs --output-file tmp.out
 '
 
-test_expect_success 'fail on purpose' '
-	test 1 -eq 0
-'
-
 test_expect_success 'remove flux-accounting DB' '
 	rm $(pwd)/FluxAccountingTest.db
 '

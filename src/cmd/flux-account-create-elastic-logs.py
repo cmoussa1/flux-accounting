@@ -55,7 +55,7 @@ def get_jobs(rpc_handle) -> list:
         sys.exit(1)
 
 
-def fetch_new_jobs(last_timestamp=None) -> list:
+def fetch_new_jobs(last_timestamp=0.0) -> list:
     """
     Fetch new jobs using Flux's job-list and job-info interfaces. Return a
     list of dictionaries that contain attribute information for inactive jobs.
@@ -68,30 +68,8 @@ def fetch_new_jobs(last_timestamp=None) -> list:
     except Exception as exc:
         # Flux is down or this logging script wasn't able to connect to the instance;
         # log an error message and exit
-        syslog.syslog(
-            syslog.LOG_ERR, "Could not connect to Flux instance; Flux may be down"
-        )
-        syslog.syslog(syslog.LOG_ERR, f"exception message: {exc}")
+        print("Could not connect to Flux instance; Flux may be down")
         sys.exit(0)
-
-    if last_timestamp is None:
-        # a timestamp wasn't specified; read from the log file and generate a timestamp
-        try:
-            with open(FLUX_TIMESTAMP_FILE, "r") as fp:
-                last_timestamp = float(fp.read().strip())
-        except FileNotFoundError:
-            # the log file doesn't exist, perhaps due to this being run for the
-            # first time; get every job that has run
-            last_timestamp = 0.0
-        except ValueError:
-            # a timestamp could not be extracted from the file; log an error and exit
-            syslog.syslog(
-                syslog.LOG_ERR, "could not extract timestamp from Flux job log file"
-            )
-            sys.exit(1)
-        except Exception as exc:
-            syslog.syslog(syslog.LOG_ERR, f"an unexpected error occurred: {exc}")
-            sys.exit(1)
 
     # get queue information
     future = handle.rpc("config.get")
@@ -114,7 +92,7 @@ def fetch_new_jobs(last_timestamp=None) -> list:
     for job in jobs:
         # fetch jobspec
         job_data = flux.job.job_kvs_lookup(
-            handle, job["id"], keys=["jobspec", "eventlog"], decode=True
+            handle, job["id"], keys=["jobspec", "eventlog", "R"], decode=True
         )
         if job_data is not None and job_data.get("jobspec") is not None:
             try:
@@ -136,6 +114,10 @@ def fetch_new_jobs(last_timestamp=None) -> list:
 
         if job_data is not None and job_data.get("eventlog") is not None:
             job["eventlog"] = job_data.get("eventlog")
+
+        if job_data is not None and job_data.get("R") is not None:
+            job["R"] = job_data.get("R")
+            job["R_size"] = sys.getsizeof(job_data.get("R"))
 
     return jobs
 
@@ -192,6 +174,8 @@ def create_job_dicts(jobs) -> list:
         rec["job"]["t_run"] = job.get("t_run")
         rec["job"]["t_inactive"] = job.get("t_inactive")
         rec["job"]["t_cleanup"] = job.get("t_cleanup")
+        rec["job"]["R"] = job.get("R")
+        rec["job"]["R_size"] = job.get("R_size")
 
         if job.get("result") is not None:
             # convert outcome code to a text value
@@ -259,8 +243,8 @@ def create_job_dicts(jobs) -> list:
                 rec["job"]["exception_note"] = job.get("exception_note")
 
         # calculate node-hours for job
-        rec["job"]["node-hours"] = (
-            job.get("nnodes") * (rec.get("event").get("duration_seconds") / 3600)
+        rec["job"]["node-hours"] = job.get("nnodes") * (
+            rec.get("event").get("duration_seconds") / 3600
         )
 
         # add scheduler used
@@ -301,6 +285,7 @@ def main():
     parser.add_argument(
         "--since",
         type=int,
+        default=0,
         help=(
             "fetch all jobs since a certain time (formatted in seconds since epoch); "
             "by default, this script will fetch all jobs that have completed in the "
@@ -314,25 +299,10 @@ def main():
     job_records = create_job_dicts(jobs)
 
     if args.output_file is None:
-        filename = "flux_jobs.ndjson"
+        filename = "flux_jobs_custom.ndjson"
     else:
         filename = args.output_file
     write_to_file(job_records, filename)
-
-    try:
-        # extract timestamp of the most recently submitted job
-        recent_job_timestamp = job_records[-1]["job"]["t_inactive"]
-    except (IndexError, KeyError, TypeError):
-        # default to just writing current time
-        recent_job_timestamp = time.time()
-    # write SUCCESS timestamp
-    try:
-        with open(FLUX_TIMESTAMP_FILE, "w") as fp:
-            # write the timestamp of the most recently submitted job
-            fp.write(f"{recent_job_timestamp}")
-    except Exception as exc:
-        syslog.syslog(f"error writing timestamp of last seen job: {exc}")
-        sys.exit(1)
 
 
 if __name__ == "__main__":
