@@ -60,6 +60,7 @@ class TestDB(unittest.TestCase):
             "project_table",
             "jobs",
             "priority_factor_weight_table",
+            "config_table",
         ]
         self.assertEqual(list_of_tables, expected)
 
