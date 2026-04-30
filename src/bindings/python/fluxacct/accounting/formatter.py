@@ -32,6 +32,16 @@ class AccountingFormatter:
             # the SQL query didn't fetch any results; raise an Exception
             raise ValueError(error_msg)
 
+    def _transform_row(self, row):
+        """Transform display values in a row before formatting."""
+        transformed = []
+        for col_name, value in zip(self.column_names, row):
+            if col_name == "active":
+                transformed.append("true" if value == 1 else "false")
+            else:
+                transformed.append(u.format_value(value))
+        return transformed
+
     def get_column_names(self):
         """
         Return the column names from the query result.
@@ -57,29 +67,25 @@ class AccountingFormatter:
         Returns:
             table: the data from the query formatted as a table.
         """
-        # fetch column names and determine the width of each column
-        col_names = [description[0] for description in self.cursor.description]
+        transformed_rows = [self._transform_row(row) for row in self.rows]
+
         col_widths = [
             max(
-                len(str(u.format_value(value)))
-                for value in [col] + [row[i] for row in self.rows]
+                len(str(value))
+                for value in [col] + [row[i] for row in transformed_rows]
             )
-            for i, col in enumerate(col_names)
+            for i, col in enumerate(self.column_names)
         ]
 
         # format a row of data
         def format_row(row):
             return " | ".join(
-                [
-                    f"{str(u.format_value(value)).ljust(col_widths[i])}"
-                    for i, value in enumerate(row)
-                ]
+                f"{str(value).ljust(col_widths[i])}" for i, value in enumerate(row)
             )
 
-        # format the header, separator, and data rows
-        header = format_row(col_names)
+        header = format_row(self.column_names)
         separator = "-+-".join(["-" * width for width in col_widths])
-        data_rows = "\n".join([format_row(row) for row in self.rows])
+        data_rows = "\n".join([format_row(row) for row in transformed_rows])
 
         table = f"{header}\n{separator}\n{data_rows}"
 
