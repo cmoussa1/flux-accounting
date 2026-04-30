@@ -163,6 +163,7 @@ def view_bank(
     cols=None,
     format_string="",
     concise=False,
+    active=False,
 ):
     if tree and cols is not None:
         # tree format cannot be combined with custom formatting, so raise an Exception
@@ -186,10 +187,10 @@ def view_bank(
         return formatter.as_format_string(format_string)
     if tree:
         if parsable:
-            return formatter.as_parsable_tree(bank, concise)
-        return formatter.as_tree(concise)
+            return formatter.as_parsable_tree(bank, concise, active)
+        return formatter.as_tree(concise, active)
     if users:
-        return formatter.with_users(bank, concise)
+        return formatter.with_users(bank, concise, active)
     return formatter.as_json()
 
 

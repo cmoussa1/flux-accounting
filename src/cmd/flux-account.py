@@ -664,6 +664,12 @@ def add_view_bank_arg(subparsers):
         const=True,
         help="only list associations that have a job usage value > 0",
     )
+    subparser_view_bank.add_argument(
+        "-A",
+        "--active",
+        action="store_true",
+        help="only list active associations under this bank",
+    )
 
 
 def add_delete_bank_arg(subparsers):

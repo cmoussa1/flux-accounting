@@ -151,8 +151,8 @@ test_expect_success 'call list-banks with a bad field' '
 '
 
 test_expect_success 'combining --tree with --fields does not work' '
-    test_must_fail flux account view-bank root --tree --fields=bank_id > error.out 2>&1 &&
-    grep "tree option does not support custom formatting" error.out
+	test_must_fail flux account view-bank root --tree --fields=bank_id > error.out 2>&1 &&
+	grep "tree option does not support custom formatting" error.out
 '
 
 test_expect_success 'call list-banks with a format string' '
@@ -189,6 +189,119 @@ test_expect_success 'edit the priority of a bank' '
 	flux account edit-bank H --priority=5000 &&
 	flux account view-bank H > bank_H_edited.out &&
 	grep "\"priority\": 5000.0" bank_H_edited.out
+'
+
+test_expect_success 'add a new bank with a set of users' '
+	flux account add-bank --parent-bank=root Z 1 &&
+	flux account add-user --username=user90001 --bank=Z &&
+	flux account add-user --username=user90002 --bank=Z
+'
+
+test_expect_success 'view-bank --parsable --tree lists active column in default output' '
+	flux account view-bank --parsable --tree Z > view_bank_tree1.test &&
+	cat view_bank_tree1.test &&
+	cat <<-EOF >view_bank_tree1.expected &&
+	Bank|Username|Active|RawShares|RawUsage|Fairshare
+	Z||true|1|0.0
+	 Z|user90001|true|1|0.0|0.5
+	 Z|user90002|true|1|0.0|0.5
+
+	EOF
+	test_cmp view_bank_tree1.test view_bank_tree1.expected
+'
+
+test_expect_success 'view-bank --tree lists active column in default output' '
+	flux account view-bank --tree Z > view_bank_tree2.test &&
+	cat <<-EOF >view_bank_tree2.expected &&
+	Bank                            Username              Active           RawShares            RawUsage           Fairshare
+	Z                                                       true                   1                 0.0
+	 Z                             user90001                true                   1                 0.0                 0.5
+	 Z                             user90002                true                   1                 0.0                 0.5
+
+	EOF
+	test_cmp view_bank_tree2.test view_bank_tree2.expected
+'
+
+test_expect_success 'view-bank --users lists active column in default output' '
+	flux account view-bank --users Z > view_bank_users1.test &&
+	cat <<-EOF > view_bank_users1.expected &&
+	username  | active | default_bank | shares | job_usage | fairshare
+	----------+--------+--------------+--------+-----------+----------
+	user90001 | 1      | Z            | 1      | 0.0       | 0.5      
+	user90002 | 1      | Z            | 1      | 0.0       | 0.5 
+	EOF
+	grep -f view_bank_users1.test view_bank_users1.expected
+'
+
+test_expect_success 'disable one of the users in bank Z' '
+	flux account delete-user user90002 Z
+'
+
+test_expect_success 'view-bank --parsable --tree lists active column in default output' '
+	flux account view-bank --parsable --tree Z > view_bank_tree3.test &&
+	cat <<-EOF >view_bank_tree3.expected &&
+	Bank|Username|Active|RawShares|RawUsage|Fairshare
+	Z||true|1|0.0
+	 Z|user90001|true|1|0.0|0.5
+	 Z|user90002|false|1|0.0|0.5
+
+	EOF
+	test_cmp view_bank_tree3.test view_bank_tree3.expected
+'
+
+test_expect_success 'view-bank --tree lists active column in default output' '
+	flux account view-bank --tree Z > view_bank_tree4.test &&
+	cat <<-EOF >view_bank_tree4.expected &&
+	Bank                            Username              Active           RawShares            RawUsage           Fairshare
+	Z                                                       true                   1                 0.0
+	 Z                             user90001                true                   1                 0.0                 0.5
+	 Z                             user90002               false                   1                 0.0                 0.5
+
+	EOF
+	test_cmp view_bank_tree4.test view_bank_tree4.expected
+'
+
+test_expect_success 'view-bank --users lists active column in default output' '
+	flux account view-bank --users Z > view_bank_users2.test &&
+	cat <<-EOF > view_bank_users2.expected &&
+	username  | active | default_bank | shares | job_usage | fairshare
+	----------+--------+--------------+--------+-----------+----------
+	user90001 | 1      | Z            | 1      | 0.0       | 0.5      
+	user90002 | 0      | Z            | 1      | 0.0       | 0.5 
+	EOF
+	grep -f view_bank_users2.test view_bank_users2.expected
+'
+
+test_expect_success 'view-bank --active --tree only shows active users under that bank' '
+	flux account view-bank --active --tree Z > view_bank_tree5.test &&
+	cat <<-EOF >view_bank_tree5.expected &&
+	Bank                            Username              Active           RawShares            RawUsage           Fairshare
+	Z                                                       true                   1                 0.0
+	 Z                             user90001                true                   1                 0.0                 0.5
+
+	EOF
+	test_cmp view_bank_tree5.test view_bank_tree5.expected
+'
+
+test_expect_success 'view-bank --active --parsable --tree only shows active users under that bank' '
+	flux account view-bank --parsable --tree --active Z > view_bank_tree6.test &&
+	cat <<-EOF >view_bank_tree6.expected &&
+	Bank|Username|Active|RawShares|RawUsage|Fairshare
+	Z||true|1|0.0
+	 Z|user90001|true|1|0.0|0.5
+
+	EOF
+	test_cmp view_bank_tree6.test view_bank_tree6.expected
+'
+
+test_expect_success 'view-bank --users --active only shows active users under that bank' '
+	flux account view-bank --users --active Z > view_bank_users3.test &&
+	cat <<-EOF > view_bank_users3.expected &&
+	username  | active | default_bank | shares | job_usage | fairshare
+	----------+--------+--------------+--------+-----------+----------
+	user90001 | 1      | Z            | 1      | 0.0       | 0.5      
+	EOF
+	grep -f view_bank_users3.test view_bank_users3.expected
 '
 
 test_expect_success 'remove flux-accounting DB' '
