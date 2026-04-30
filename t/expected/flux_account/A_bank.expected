@@ -1,8 +1,8 @@
 bank_id | bank | active | parent_bank | shares | job_usage | priority | ignore_older_than
 --------+------+--------+-------------+--------+-----------+----------+------------------
-2       | A    | 1      | root        | 1      | 0.0       | 0.0      | 0                
+2       | A    | true   | root        | 1      | 0.0       | 0.0      | 0                
 
 username | active | default_bank | shares | job_usage | fairshare
 ---------+--------+--------------+--------+-----------+----------
-user5011 | 1      | A            | 1      | 0.0       | 0.5      
-user5012 | 1      | A            | 1      | 0.0       | 0.5      
+user5011 | true   | A            | 1      | 0.0       | 0.5      
+user5012 | true   | A            | 1      | 0.0       | 0.5      

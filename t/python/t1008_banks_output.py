@@ -224,8 +224,8 @@ class TestAccountingCLI(unittest.TestCase):
             """\
         bank_id | bank | active | parent_bank | shares | job_usage | priority | ignore_older_than
         --------+------+--------+-------------+--------+-----------+----------+------------------
-        1       | root | 1      |             | 1      | 0.0       | 0.0      | 0                
-        2       | A    | 1      | root        | 1      | 0.0       | 0.0      | 0      
+        1       | root | true   |             | 1      | 0.0       | 0.0      | 0                
+        2       | A    | true   | root        | 1      | 0.0       | 0.0      | 0      
         """
         )
         test = b.list_banks(conn)
@@ -260,8 +260,8 @@ class TestAccountingCLI(unittest.TestCase):
             """\
         bank_id | bank | active
         --------+------+-------
-        1       | root | 1     
-        2       | A    | 1     
+        1       | root | true  
+        2       | A    | true     
         """
         )
         test = b.list_banks(conn, cols=["bank_id", "bank", "active"])
@@ -272,8 +272,8 @@ class TestAccountingCLI(unittest.TestCase):
             """\
         bank_id | bank | active | parent_bank
         --------+------+--------+------------
-        1       | root | 1      |            
-        2       | A    | 1      | root
+        1       | root | true   |            
+        2       | A    | true   | root
         """
         )
         test = b.list_banks(conn, cols=["bank_id", "bank", "active", "parent_bank"])
@@ -284,8 +284,8 @@ class TestAccountingCLI(unittest.TestCase):
             """\
         bank_id | bank | active | parent_bank | shares
         --------+------+--------+-------------+-------
-        1       | root | 1      |             | 1     
-        2       | A    | 1      | root        | 1
+        1       | root | true   |             | 1     
+        2       | A    | true   | root        | 1
         """
         )
         test = b.list_banks(
@@ -299,8 +299,8 @@ class TestAccountingCLI(unittest.TestCase):
             """\
         bank_id | bank | active | parent_bank | shares | job_usage
         --------+------+--------+-------------+--------+----------
-        1       | root | 1      |             | 1      | 0.0      
-        2       | A    | 1      | root        | 1      | 0.0
+        1       | root | true   |             | 1      | 0.0      
+        2       | A    | true   | root        | 1      | 0.0
         """
         )
         test = b.list_banks(

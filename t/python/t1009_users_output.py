@@ -81,7 +81,7 @@ class TestAccountingCLI(unittest.TestCase):
             """\
         active | username | bank | shares
         -------+----------+------+-------
-        1      | user1    | A    | 1  
+        true   | user1    | A    | 1  
         """
         )
         test = u.view_user(
