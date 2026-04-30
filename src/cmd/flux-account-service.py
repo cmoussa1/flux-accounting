@@ -289,6 +289,7 @@ class AccountingService:
                 else None,
                 msg.payload.get("format"),
                 msg.payload.get("concise"),
+                msg.payload.get("active"),
             )
 
             payload = {"view_bank": val}
