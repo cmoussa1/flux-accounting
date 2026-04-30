@@ -1,13 +1,13 @@
-Bank                            Username           RawShares            RawUsage           Fairshare
-root                                                       1                 0.0
- A                                                         1                 0.0
-  A                             user5011                   1                 0.0                 0.5
-  A                             user5012                   1                 0.0                 0.5
- B                                                         1                 0.0
-  B                             user5013                   1                 0.0                 0.5
- C                                                         1                 0.0
-  C                             user5014                   1                 0.0                 0.5
- D                                                         1                 0.0
-  E                                                        1                 0.0
-  F                                                        1                 0.0
+Bank                            Username              Active           RawShares            RawUsage           Fairshare
+root                                                    true                   1                 0.0
+ A                                                      true                   1                 0.0
+  A                             user5011                true                   1                 0.0                 0.5
+  A                             user5012                true                   1                 0.0                 0.5
+ B                                                      true                   1                 0.0
+  B                             user5013                true                   1                 0.0                 0.5
+ C                                                      true                   1                 0.0
+  C                             user5014                true                   1                 0.0                 0.5
+ D                                                      true                   1                 0.0
+  E                                                     true                   1                 0.0
+  F                                                     true                   1                 0.0
 

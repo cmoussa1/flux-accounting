@@ -2,7 +2,7 @@ bank_id | bank | active | parent_bank | shares | job_usage | priority | ignore_o
 --------+------+--------+-------------+--------+-----------+----------+------------------
 2       | A    | 1      | root        | 1      | 0.0       | 0.0      | 0                
 
-username | default_bank | shares | job_usage | fairshare
----------+--------------+--------+-----------+----------
-user5011 | A            | 1      | 0.0       | 0.5      
-user5012 | A            | 1      | 0.0       | 0.5      
+username | active | default_bank | shares | job_usage | fairshare
+---------+--------+--------------+--------+-----------+----------
+user5011 | 1      | A            | 1      | 0.0       | 0.5      
+user5012 | 1      | A            | 1      | 0.0       | 0.5      

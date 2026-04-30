@@ -1,5 +1,5 @@
-Bank                            Username           RawShares            RawUsage           Fairshare
-D                                                          1                 0.0
- E                                                         1                 0.0
- F                                                         1                 0.0
+Bank                            Username              Active           RawShares            RawUsage           Fairshare
+D                                                       true                   1                 0.0
+ E                                                      true                   1                 0.0
+ F                                                      true                   1                 0.0
 

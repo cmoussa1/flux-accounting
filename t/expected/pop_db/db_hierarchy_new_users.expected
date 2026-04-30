@@ -1,17 +1,17 @@
-Bank                            Username           RawShares            RawUsage           Fairshare
-root                                                       1                 0.0
- A                                                         1                 0.0
-  A                             user1000                   1                 0.0                 0.5
-  A                             user1001                   1                 0.0                 0.5
-  A                             user1002                   1                 0.0                 0.5
-  A                             user1003                   1                 0.0                 0.5
-  A                             user1004                   1                 0.0                 0.5
- B                                                         1                 0.0
-  B                             user1005                   1                 0.0                 0.5
-  B                             user1006                   1                 0.0                 0.5
-  B                             user1007                   1                 0.0                 0.5
-  B                             user1008                   1                 0.0                 0.5
-  B                             user1009                   1                 0.0                 0.5
- C                                                         1                 0.0
-  D                                                        1                 0.0
+Bank                            Username              Active           RawShares            RawUsage           Fairshare
+root                                                    true                   1                 0.0
+ A                                                      true                   1                 0.0
+  A                             user1000                true                   1                 0.0                 0.5
+  A                             user1001                true                   1                 0.0                 0.5
+  A                             user1002                true                   1                 0.0                 0.5
+  A                             user1003                true                   1                 0.0                 0.5
+  A                             user1004                true                   1                 0.0                 0.5
+ B                                                      true                   1                 0.0
+  B                             user1005                true                   1                 0.0                 0.5
+  B                             user1006                true                   1                 0.0                 0.5
+  B                             user1007                true                   1                 0.0                 0.5
+  B                             user1008                true                   1                 0.0                 0.5
+  B                             user1009                true                   1                 0.0                 0.5
+ C                                                      true                   1                 0.0
+  D                                                     true                   1                 0.0
 
