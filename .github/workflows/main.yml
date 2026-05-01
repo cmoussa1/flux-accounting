@@ -20,7 +20,7 @@ jobs:
     steps:
     - uses: actions/checkout@v6
     - name: Check Spelling
-      uses: crate-ci/typos@v1.45.0
+      uses: crate-ci/typos@v1.46.0
 
   python-format:
     name: python format
@@ -140,7 +140,7 @@ jobs:
         && matrix.create_release
         && github.repository == 'flux-framework/flux-accounting'
       env: ${{matrix.env}}
-      uses: softprops/action-gh-release@v2.6.1
+      uses: softprops/action-gh-release@v3.0.0
       with:
         tag_name: ${{ matrix.tag }}
         name: flux-accounting ${{ matrix.tag }}
