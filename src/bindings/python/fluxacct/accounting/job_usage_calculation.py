@@ -162,7 +162,7 @@ def calc_usage_factor(
     usage_factors = [row[1] for row in period_rows]
 
     # hl_period represents the number of seconds that represent one usage bin
-    hl_period = pdhl * 604800
+    hl_period = pdhl
 
     last_t_inactive = 0.0
     usg_current = 0.0
@@ -218,7 +218,7 @@ def calc_usage_factor(
 
 
 def check_end_hl(acct_conn, pdhl):
-    hl_period = pdhl * 604800
+    hl_period = pdhl
 
     cur = acct_conn.cursor()
 
@@ -338,6 +338,13 @@ def update_job_usage(acct_conn, pdhl=1):
         for job in new_job_records:
             key = (job.userid, job.bank)
             association_jobs[key].append(job)
+
+        # get PriorityDecayHalfLife
+        pdhl = float(
+            cur.execute(
+                "SELECT value FROM config_table WHERE key='priority_decay_half_life'"
+            ).fetchone()[0]
+        )
 
         # update the job usage for every user in the association_table
         for row in result:
