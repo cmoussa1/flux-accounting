@@ -330,6 +330,36 @@ static int check_and_release_held_jobs (flux_plugin_t *p, Association *b)
             }
             held_job.remove_dep (D_QUEUE_MSJ);
         }
+        // is association under the max SCHED nodes limit for the queue the
+        // held job is submitted under?
+        if (b->under_queue_max_sched_nodes (held_job,
+                                            held_job.queue,
+                                            queues) &&
+            held_job.contains_dep (D_QUEUE_MSN)) {
+            if (flux_jobtap_dependency_remove (p,
+                                               held_job.id,
+                                               D_QUEUE_MSN) < 0) {
+                dependency = D_QUEUE_MSN;
+                held_job_id = held_job.id;
+                goto error;
+            }
+            held_job.remove_dep (D_QUEUE_MSN);
+        }
+        // is association under the max SCHED cores limit for the queue the
+        // held job is submitted under?
+        if (b->under_queue_max_sched_cores (held_job,
+                                            held_job.queue,
+                                            queues) &&
+            held_job.contains_dep (D_QUEUE_MSC)) {
+            if (flux_jobtap_dependency_remove (p,
+                                               held_job.id,
+                                               D_QUEUE_MSC) < 0) {
+                dependency = D_QUEUE_MSC;
+                held_job_id = held_job.id;
+                goto error;
+            }
+            held_job.remove_dep (D_QUEUE_MSC);
+        }
         // is the association under the max nodes limit for the queue the
         // held job is submitted under?
         if (b->under_queue_max_resources (held_job, held_job.queue, queues) &&
@@ -1356,6 +1386,20 @@ static int depend_cb (flux_plugin_t *p,
                 goto error;
             job.add_dep (D_QUEUE_MSJ);
         }
+        if (!b->under_queue_max_sched_nodes (job, queue_str, queues)) {
+            // association is already at their max nodes in SCHED state limit
+            // across their running jobs in this queue; add a dependency
+            if (flux_jobtap_dependency_add (p, id, D_QUEUE_MSN) < 0)
+                goto error;
+            job.add_dep (D_QUEUE_MSN);
+        }
+        if (!b->under_queue_max_sched_cores (job, queue_str, queues)) {
+            // association is already at their max cores in SCHED state limit
+            // across their running jobs in this queue; add a dependency
+            if (flux_jobtap_dependency_add (p, id, D_QUEUE_MSC) < 0)
+                goto error;
+            job.add_dep (D_QUEUE_MSC);
+        }
         if (!b->under_queue_max_resources (job, queue_str, queues)) {
             // association is already at their max nodes limit across their
             // running jobs in this queue; add a dependency
@@ -1415,13 +1459,16 @@ static int sched_cb (flux_plugin_t *p,
 {
     Association *a;
     char *queue = NULL;
+    json_t *jobspec = NULL;
+    Job job;
 
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
                                 FLUX_PLUGIN_ARG_IN,
-                                "{s{s{s{s?s}}}}",
+                                "{s{s{s{s?s}}}, s:o}",
                                 "jobspec", "attributes", "system",
-                                "queue", &queue) < 0) {
+                                "queue", &queue,
+                                "jobspec", &jobspec) < 0) {
         flux_jobtap_raise_exception (p,
                                      FLUX_JOBTAP_CURRENT_JOB,
                                      "mf_priority",
@@ -1450,6 +1497,29 @@ static int sched_cb (flux_plugin_t *p,
     std::string queue_str = queue ? queue : "";
     a->queue_usage[queue_str].cur_sched_jobs++;
 
+    if (jobspec == NULL) {
+        flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB, "mf_priority",
+                                     0, "job.state.sched: failed to unpack " \
+                                     "jobspec");
+        return -1;
+    } else {
+        // if a queue cannot be found, just set it to ""
+        queue_str = queue ? queue : "";
+        // count resources requested for the job
+        if (job.count_resources (jobspec) < 0) {
+            flux_jobtap_raise_exception (p,
+                                         FLUX_JOBTAP_CURRENT_JOB,
+                                         "mf_priority",
+                                         0,
+                                         "job.state.sched: unable to count " \
+                                         "resources for job");
+            return -1;
+        }
+        // increment cur_sched_nodes/cores count for association in this queue
+        a->queue_usage[queue_str].cur_sched_nodes += job.nnodes;
+        a->queue_usage[queue_str].cur_sched_cores += job.ncores;
+    }
+
     return 0;
 }
 
@@ -1464,6 +1534,7 @@ static int run_cb (flux_plugin_t *p,
     json_t *jobspec = NULL;
     char *queue = NULL;
     std::string queue_str;
+    Job job;
 
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
@@ -1519,6 +1590,19 @@ static int run_cb (flux_plugin_t *p,
                                          "resource count");
             return -1;
         }
+        // count resources requested for the job
+        if (job.count_resources (jobspec) < 0) {
+            flux_jobtap_raise_exception (p,
+                                         FLUX_JOBTAP_CURRENT_JOB,
+                                         "mf_priority",
+                                         0,
+                                         "job.state.run: unable to count " \
+                                         "resources for job");
+            return -1;
+        }
+        // decrement cur_sched_nodes/cores count for association in this queue
+        b->queue_usage[queue_str].cur_sched_nodes -= job.nnodes;
+        b->queue_usage[queue_str].cur_sched_cores -= job.ncores;
     }
 
     // decrement the association's current SCHED jobs count
@@ -1804,6 +1888,20 @@ static int inactive_cb (flux_plugin_t *p,
         // decrement cur_sched_jobs for association since it never ran
         b->cur_sched_jobs--;
         b->queue_usage[queue_str].cur_sched_jobs--;
+        // count resources requested for the job
+        if (job.count_resources (jobspec) < 0) {
+            flux_jobtap_raise_exception (p,
+                                         FLUX_JOBTAP_CURRENT_JOB,
+                                         "mf_priority",
+                                         0,
+                                         "job.state.run: unable to count " \
+                                         "resources for job");
+            return -1;
+        }
+        // decrement cur_sched_nodes/cores count for association in this queue
+        // since it never ran
+        b->queue_usage[queue_str].cur_sched_nodes -= job.nnodes;
+        b->queue_usage[queue_str].cur_sched_cores -= job.ncores;
         return 0;
     }
 
