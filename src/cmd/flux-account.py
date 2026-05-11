@@ -17,6 +17,7 @@ from flux.constants import FLUX_USERID_UNKNOWN
 import fluxacct.accounting
 
 from fluxacct.accounting import create_db as c
+from fluxacct.accounting import INTEGER_MAX
 
 
 def add_path_arg(parser):
@@ -846,6 +847,28 @@ def add_add_queue_arg(subparsers):
         default=2147483647,
         metavar="NJOBS",
     )
+    subparser_add_queue.add_argument(
+        "-msn",
+        "--max-sched-nodes-per-assoc",
+        type=int,
+        help=(
+            "max number of nodes in SCHED state an association can have across all of "
+            "their active jobs in this queue at any given time"
+        ),
+        default=INTEGER_MAX,
+        metavar="NNODES",
+    )
+    subparser_add_queue.add_argument(
+        "-msc",
+        "--max-sched-cores-per-assoc",
+        type=int,
+        help=(
+            "max number of cores in SCHED state an association can have across all of "
+            "their active jobs in this queue at any given time"
+        ),
+        default=INTEGER_MAX,
+        metavar="NCORES",
+    )
 
 
 def add_view_queue_arg(subparsers):
@@ -940,6 +963,28 @@ def add_edit_queue_arg(subparsers):
         ),
         default=2147483647,
         metavar="NJOBS",
+    )
+    subparser_edit_queue.add_argument(
+        "-msn",
+        "--max-sched-nodes-per-assoc",
+        type=int,
+        help=(
+            "max number of nodes in SCHED state an association can have across all of "
+            "their active jobs in this queue at any given time"
+        ),
+        default=INTEGER_MAX,
+        metavar="NNODES",
+    )
+    subparser_edit_queue.add_argument(
+        "-msc",
+        "--max-sched-cores-per-assoc",
+        type=int,
+        help=(
+            "max number of cores in SCHED state an association can have across all of "
+            "their active jobs in this queue at any given time"
+        ),
+        default=INTEGER_MAX,
+        metavar="NCORES",
     )
 
 
@@ -1090,7 +1135,7 @@ def add_list_queues_arg(subparsers):
         default=None,
         metavar=(
             "QUEUE,MIN_NODES_PER_JOB,MAX_NODES_PER_JOB,MAX_TIME_PER_JOB,PRIORITY,"
-            "MAX_SCHED_JOBS"
+            "MAX_SCHED_JOBS,MAX_SCHED_NODES,MAX_SCHED_CORES"
         ),
     )
     subparser_list_queues.add_argument(
