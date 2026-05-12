@@ -1771,6 +1771,7 @@ static int inactive_cb (flux_plugin_t *p,
     char *queue = NULL;
     std::string queue_str;
     flux_jobid_t jobid;
+    Job job;
 
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
@@ -1816,6 +1817,9 @@ static int inactive_cb (flux_plugin_t *p,
                             cancelled_job),
             b->held_jobs.end ()
         );
+        // decrement cur_sched_jobs for association since it never ran
+        b->cur_sched_jobs--;
+        b->queue_usage[queue_str].cur_sched_jobs--;
         return 0;
     }
 
