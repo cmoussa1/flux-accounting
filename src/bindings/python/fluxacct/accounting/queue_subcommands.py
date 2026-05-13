@@ -42,8 +42,8 @@ def add_queue(
     max_time=60,
     priority=0,
     max_running_jobs=100,
-    max_nodes_per_assoc=2147483647,
-    max_sched_jobs=2147483647,
+    max_nodes_per_assoc=INTEGER_MAX,
+    max_sched_jobs=INTEGER_MAX,
     max_sched_nodes_per_assoc=INTEGER_MAX,
     max_sched_cores_per_assoc=INTEGER_MAX,
 ):

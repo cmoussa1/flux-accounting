@@ -18,6 +18,7 @@ from fluxacct.accounting import formatter as fmt
 from fluxacct.accounting import sql_util as sql
 from fluxacct.accounting import util
 from fluxacct.accounting.util import with_cursor
+from fluxacct.accounting import INTEGER_MAX
 
 ###############################################################
 #                                                             #
@@ -339,12 +340,12 @@ def add_user(
     fairshare=0.5,
     max_running_jobs=5,
     max_active_jobs=7,
-    max_nodes=2147483647,
-    max_cores=2147483647,
+    max_nodes=INTEGER_MAX,
+    max_cores=INTEGER_MAX,
     queues="",
     projects="*",
     default_project=None,
-    max_sched_jobs=2147483647,
+    max_sched_jobs=INTEGER_MAX,
 ):
     if uid == FLUX_USERID_UNKNOWN:
         uid = util.get_uid(username)
