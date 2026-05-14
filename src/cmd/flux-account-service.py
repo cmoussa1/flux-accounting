@@ -413,6 +413,8 @@ class AccountingService:
                 msg.payload.get("max_running_jobs"),
                 msg.payload.get("max_nodes_per_assoc"),
                 msg.payload.get("max_sched_jobs"),
+                msg.payload.get("max_sched_nodes_per_assoc"),
+                msg.payload.get("max_sched_cores_per_assoc"),
             )
 
             payload = {"add_queue": val}
@@ -464,6 +466,8 @@ class AccountingService:
                 msg.payload.get("max_running_jobs"),
                 msg.payload.get("max_nodes_per_assoc"),
                 msg.payload.get("max_sched_jobs"),
+                msg.payload.get("max_sched_nodes_per_assoc"),
+                msg.payload.get("max_sched_cores_per_assoc"),
             )
 
             payload = {"edit_queue": val}

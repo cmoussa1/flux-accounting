@@ -15,6 +15,7 @@ import fluxacct.accounting
 from fluxacct.accounting import formatter as fmt
 from fluxacct.accounting import sql_util as sql
 from fluxacct.accounting.util import with_cursor
+from fluxacct.accounting import INTEGER_MAX
 
 
 @with_cursor
@@ -43,6 +44,8 @@ def add_queue(
     max_running_jobs=100,
     max_nodes_per_assoc=2147483647,
     max_sched_jobs=2147483647,
+    max_sched_nodes_per_assoc=INTEGER_MAX,
+    max_sched_cores_per_assoc=INTEGER_MAX,
 ):
     try:
         insert_stmt = """
@@ -54,8 +57,10 @@ def add_queue(
                         priority,
                         max_running_jobs,
                         max_nodes_per_assoc,
-                        max_sched_jobs
-                      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        max_sched_jobs,
+                        max_sched_nodes_per_assoc,
+                        max_sched_cores_per_assoc
+                      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                       """
         cur.execute(
             insert_stmt,
@@ -68,6 +73,8 @@ def add_queue(
                 max_running_jobs,
                 max_nodes_per_assoc,
                 max_sched_jobs,
+                max_sched_nodes_per_assoc,
+                max_sched_cores_per_assoc,
             ),
         )
 
@@ -119,6 +126,8 @@ def edit_queue(
     max_running_jobs=None,
     max_nodes_per_assoc=None,
     max_sched_jobs=None,
+    max_sched_nodes_per_assoc=None,
+    max_sched_cores_per_assoc=None,
 ):
     params = locals()
     editable_fields = [
@@ -129,6 +138,8 @@ def edit_queue(
         "max_running_jobs",
         "max_nodes_per_assoc",
         "max_sched_jobs",
+        "max_sched_nodes_per_assoc",
+        "max_sched_cores_per_assoc",
     ]
 
     for field in editable_fields:
@@ -136,6 +147,10 @@ def edit_queue(
             # check that the passed in value is truly an integer
             if not isinstance(params[field], int):
                 raise ValueError("passed in value must be an integer")
+            if params[field] != "priority" and params[field] < -1:
+                raise ValueError(
+                    "value must be a non-negative integer or -1 to reset to default"
+                )
 
             update_stmt = "UPDATE queue_table SET " + field
 
