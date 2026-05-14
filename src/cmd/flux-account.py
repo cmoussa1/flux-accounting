@@ -215,14 +215,14 @@ def add_add_user_arg(subparsers):
         "-N",
         "--max-nodes",
         help="max number of nodes a user can have across all of their running jobs",
-        default=2147483647,
+        default=INTEGER_MAX,
         metavar="MAX_NODES",
     )
     subparser_add_user.add_argument(
         "-c",
         "--max-cores",
         help="max number of cores a user can have across all of their running jobs",
-        default=2147483647,
+        default=INTEGER_MAX,
         metavar="MAX_CORES",
     )
     subparser_add_user.add_argument(
@@ -248,7 +248,7 @@ def add_add_user_arg(subparsers):
     subparser_add_user.add_argument(
         "--max-sched-jobs",
         help="max number of jobs in SCHED state the user can have at any given time",
-        default=2147483647,
+        default=INTEGER_MAX,
         metavar="NJOBS",
     )
 
@@ -834,7 +834,7 @@ def add_add_queue_arg(subparsers):
             "max number of nodes an association can have across all of their running "
             "jobs in the queue"
         ),
-        default=2147483647,
+        default=INTEGER_MAX,
         metavar="MAX_NODES_PER_ASSOC",
     )
     subparser_add_queue.add_argument(
@@ -844,7 +844,7 @@ def add_add_queue_arg(subparsers):
             "max number of jobs in SCHED state an association can have in this queue "
             "at any given time"
         ),
-        default=2147483647,
+        default=INTEGER_MAX,
         metavar="NJOBS",
     )
     subparser_add_queue.add_argument(
@@ -961,7 +961,7 @@ def add_edit_queue_arg(subparsers):
             "max number of jobs in SCHED state an association can have in this queue "
             "at any given time"
         ),
-        default=2147483647,
+        default=INTEGER_MAX,
         metavar="NJOBS",
     )
     subparser_edit_queue.add_argument(
