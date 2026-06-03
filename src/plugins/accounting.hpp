@@ -146,12 +146,8 @@ public:
                                   const std::string &queue,
                                   const std::map<std::string, Queue> &queues);
     bool under_max_sched_jobs ();
-    bool under_max_sched_jobs (int pending);
     bool under_queue_max_sched_jobs (const std::string &queue,
                                      std::map<std::string, Queue> &queues);
-    bool under_queue_max_sched_jobs (const std::string &queue,
-                                     std::map<std::string, Queue> &queues,
-                                     int pending);
     bool under_queue_max_sched_nodes (const Job &job,
                                       const std::string &queue,
                                       std::map<std::string, Queue> &queues);

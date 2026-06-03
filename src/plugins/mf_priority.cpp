@@ -304,15 +304,28 @@ static int check_and_release_held_jobs (flux_plugin_t *p, Association *b)
     // fire, so without this local counter, a second held job would observe the
     // same headroom as the first and be released even though the limit no
     // longer permits it.
+    //
+    // A held job may carry more than one flux-accounting dependency, and it is
+    // only truly released to SCHED state once *all* of them are removed. We
+    // must therefore not reserve headroom for a job that had one dependency
+    // removed but still retains another: doing so would consume limit headroom
+    // on behalf of a job that is not actually entering SCHED state, wrongly
+    // keeping subsequent eligible jobs held. To avoid this, each iteration
+    // accumulates this job's would-be contributions into per-job temporaries
+    // and only folds them into the pass-wide counters below once the job is
+    // confirmed to have no remaining dependencies.
     int released_assoc_run = 0;
-    int released_assoc_sched = 0;
     std::map<std::string, int> released_queue_run;
-    std::map<std::string, int> released_queue_sched;
 
     auto it = b->held_jobs.begin ();
     while (it != b->held_jobs.end ()) {
         // grab held Job object
         Job &held_job = *it;
+
+        // per-job pending contributions; only committed to the pass-wide
+        // counters if this job ends up fully released (deps.empty ())
+        int job_assoc_run = 0;
+        int job_queue_run = 0;
 
         // is the association under the max running jobs limit for the
         // queue the held job is submitted under?
@@ -328,14 +341,13 @@ static int check_and_release_held_jobs (flux_plugin_t *p, Association *b)
                 goto error;
             }
             held_job.remove_dep (D_QUEUE_MRJ);
-            released_queue_run[held_job.queue]++;
+            job_queue_run++;
         }
         // is association under the max SCHED jobs limit for the queue the
         // held job is submitted under, accounting for jobs already released
         // in this pass?
         if (b->under_queue_max_sched_jobs (held_job.queue,
-                                           queues,
-                                           released_queue_sched[held_job.queue])
+                                           queues)
             && held_job.contains_dep (D_QUEUE_MSJ)) {
             if (flux_jobtap_dependency_remove (p,
                                                held_job.id,
@@ -345,14 +357,13 @@ static int check_and_release_held_jobs (flux_plugin_t *p, Association *b)
                 goto error;
             }
             held_job.remove_dep (D_QUEUE_MSJ);
-            released_queue_sched[held_job.queue]++;
         }
         // is association under the max SCHED nodes limit for the queue the
         // held job is submitted under? cur_sched_nodes already reflects any
         // jobs released earlier in this pass, because each released job's
         // job.state.sched callback fires synchronously and increments the
-        // counter before we reach the next held job -- so no pending offset
-        // is needed (or correct) here
+        // counter before we reach the next held job, so no speculative counter
+        // is needed here
         if (b->under_queue_max_sched_nodes (held_job,
                                             held_job.queue,
                                             queues) &&
@@ -405,11 +416,11 @@ static int check_and_release_held_jobs (flux_plugin_t *p, Association *b)
                 goto error;
             }
             held_job.remove_dep (D_ASSOC_MRJ);
-            released_assoc_run++;
+            job_assoc_run++;
         }
         // is association under their max SCHED jobs limit, accounting for
         // jobs already released in this pass?
-        if (b->under_max_sched_jobs (released_assoc_sched) &&
+        if (b->under_max_sched_jobs () &&
             held_job.contains_dep (D_ASSOC_MSJ)) {
             if (flux_jobtap_dependency_remove (p,
                                                held_job.id,
@@ -419,7 +430,6 @@ static int check_and_release_held_jobs (flux_plugin_t *p, Association *b)
                 goto error;
             }
             held_job.remove_dep (D_ASSOC_MSJ);
-            released_assoc_sched++;
         }
         // will association stay under or at their overall max resources limit
         // by releasing this job?
@@ -435,14 +445,20 @@ static int check_and_release_held_jobs (flux_plugin_t *p, Association *b)
             held_job.remove_dep (D_ASSOC_MRES);
         }
 
-        if (held_job.deps.empty ())
-            // the Job no longer has any flux-accounting dependencies on
-            // it; remove it from the Association's vector of held jobs
-            // (erase () will return the next valid iterator)
+        if (held_job.deps.empty ()) {
+            // the Job no longer has any flux-accounting dependencies on it and
+            // is now actually being released to SCHED state; commit this job's
+            // pending contributions to the pass-wide counters so subsequent
+            // held jobs see the correct, reduced headroom for each limit
+            released_assoc_run += job_assoc_run;
+            released_queue_run[held_job.queue] += job_queue_run;
+            // remove it from the Association's vector of held jobs (erase ()
+            // will return the next valid iterator)
             it = b->held_jobs.erase (it);
-        else
-            // the job did not meet all requirements to be released;
-            // move onto the next Job
+        } else
+            // the job did not meet all requirements to be released; move onto
+            // the next Job without reserving any headroom on its behalf, since
+            // it is not actually entering SCHED state
             ++it;
     }
     return 0;
