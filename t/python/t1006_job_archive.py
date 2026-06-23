@@ -13,7 +13,6 @@ import unittest
 import os
 import sqlite3
 import time
-import sys
 from collections import defaultdict
 from collections import namedtuple
 
@@ -57,51 +56,44 @@ def fake_get_username(name):
 
 
 class TestAccountingCLI(unittest.TestCase):
-    # create accounting database
     @classmethod
     def setUpClass(self):
-        global acct_conn
-        global cur
+        global conn
+        global cursor
         global user_jobs
 
-        # create example job-archive database, output file
         self.dbname = f"TestDB_{os.path.basename(__file__)[:5]}_{round(time.time())}.db"
         c.create_db(self.dbname)
-        try:
-            acct_conn = sqlite3.connect(
-                f"file:{self.dbname}?mode=rw", uri=True, timeout=60
-            )
-            acct_conn.row_factory = sqlite3.Row
-            cur = acct_conn.cursor()
-        except sqlite3.OperationalError:
-            print(f"Unable to open test database file", file=sys.stderr)
-            sys.exit(-1)
+
+        conn = sqlite3.connect(self.dbname, timeout=60)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
 
         # simulate end of half life period in FluxAccounting database
         update_stmt = """
             UPDATE t_half_life_period_table SET end_half_life_period=?
             WHERE cluster='cluster'
             """
-        acct_conn.execute(update_stmt, ("10000000",))
-        acct_conn.commit()
+        conn.execute(update_stmt, ("10000000",))
+        conn.commit()
 
         # add bank hierarchy
-        b.add_bank(acct_conn, bank="A", shares=1)
-        b.add_bank(acct_conn, bank="B", parent_bank="A", shares=1)
-        b.add_bank(acct_conn, bank="C", parent_bank="B", shares=1)
-        b.add_bank(acct_conn, bank="D", parent_bank="B", shares=1)
+        b.add_bank(conn, bank="A", shares=1)
+        b.add_bank(conn, bank="B", parent_bank="A", shares=1)
+        b.add_bank(conn, bank="C", parent_bank="B", shares=1)
+        b.add_bank(conn, bank="D", parent_bank="B", shares=1)
 
         # add users
-        u.add_user(acct_conn, username="1001", uid=1001, bank="C")
-        u.add_user(acct_conn, username="1002", uid=1002, bank="C")
-        u.add_user(acct_conn, username="1003", uid=1003, bank="D")
-        u.add_user(acct_conn, username="1004", uid=1004, bank="D")
+        u.add_user(conn, username="1001", uid=1001, bank="C")
+        u.add_user(conn, username="1002", uid=1002, bank="C")
+        u.add_user(conn, username="1003", uid=1003, bank="D")
+        u.add_user(conn, username="1004", uid=1004, bank="D")
 
         jobid = 100
         interval = 0  # add to job timestamps to diversify job-archive records
 
         @mock.patch("time.time", mock.MagicMock(return_value=9000000))
-        def populate_job_archive_db(acct_conn, userid, bank, ranks, nodes, num_entries):
+        def populate_job_archive_db(conn, userid, bank, ranks, nodes, num_entries):
             nonlocal jobid
             nonlocal interval
             t_inactive_delta = 2000
@@ -131,7 +123,7 @@ class TestAccountingCLI(unittest.TestCase):
 
             for i in range(num_entries):
                 try:
-                    acct_conn.execute(
+                    conn.execute(
                         """
                         INSERT INTO jobs (
                             id,
@@ -159,7 +151,7 @@ class TestAccountingCLI(unittest.TestCase):
                         ),
                     )
                     # commit changes
-                    acct_conn.commit()
+                    conn.commit()
                 # make sure entry is unique
                 except sqlite3.IntegrityError as integrity_error:
                     print(integrity_error)
@@ -169,17 +161,17 @@ class TestAccountingCLI(unittest.TestCase):
                 t_inactive_delta += 100
 
         # populate the job-archive DB with fake job entries
-        populate_job_archive_db(acct_conn, 1001, "C", "0", "fluke[0]", 2)
+        populate_job_archive_db(conn, 1001, "C", "0", "fluke[0]", 2)
 
-        populate_job_archive_db(acct_conn, 1002, "C", "0-1", "fluke[0-1]", 3)
-        populate_job_archive_db(acct_conn, 1002, "C", "0", "fluke[0]", 2)
+        populate_job_archive_db(conn, 1002, "C", "0-1", "fluke[0-1]", 3)
+        populate_job_archive_db(conn, 1002, "C", "0", "fluke[0]", 2)
 
-        populate_job_archive_db(acct_conn, 1003, "D", "0-2", "fluke[0-2]", 3)
+        populate_job_archive_db(conn, 1003, "D", "0-2", "fluke[0-2]", 3)
 
-        populate_job_archive_db(acct_conn, 1004, "D", "0-3", "fluke[0-3]", 4)
-        populate_job_archive_db(acct_conn, 1004, "D", "0", "fluke[0]", 4)
+        populate_job_archive_db(conn, 1004, "D", "0-3", "fluke[0-3]", 4)
+        populate_job_archive_db(conn, 1004, "D", "0", "fluke[0]", 4)
 
-        job_records = j.convert_to_obj(j.get_jobs(acct_conn))
+        job_records = j.convert_to_obj(j.get_jobs(conn))
         # convert jobs to dictionary to be referenced in unit tests below
         user_jobs = defaultdict(list)
         for job in job_records:
@@ -190,20 +182,20 @@ class TestAccountingCLI(unittest.TestCase):
     # its job information
     def test_01_with_jobid_valid(self):
         my_dict = {"jobid": 102}
-        job_records = j.get_jobs(acct_conn, **my_dict)
+        job_records = j.get_jobs(conn, **my_dict)
         self.assertEqual(len(job_records), 1)
 
     # passing a bad jobid should return no records
     def test_02_with_jobid_failure(self):
         my_dict = {"jobid": 000}
-        job_records = j.get_jobs(acct_conn, **my_dict)
+        job_records = j.get_jobs(conn, **my_dict)
         self.assertEqual(len(job_records), 0)
 
     # passing a timestamp before the first job to
     # start should return all of the jobs
     def test_03_after_start_time_all(self):
         my_dict = {"after_start_time": 0}
-        job_records = j.get_jobs(acct_conn, **my_dict)
+        job_records = j.get_jobs(conn, **my_dict)
         self.assertEqual(len(job_records), 18)
 
     # passing a timestamp after all of the start time
@@ -211,7 +203,7 @@ class TestAccountingCLI(unittest.TestCase):
     @mock.patch("time.time", mock.MagicMock(return_value=11000000))
     def test_04_after_start_time_none(self):
         my_dict = {"after_start_time": time.time()}
-        job_records = j.get_jobs(acct_conn, **my_dict)
+        job_records = j.get_jobs(conn, **my_dict)
         self.assertEqual(len(job_records), 0)
 
     # passing a timestamp before the end time of the
@@ -219,14 +211,14 @@ class TestAccountingCLI(unittest.TestCase):
     @mock.patch("time.time", mock.MagicMock(return_value=11000000))
     def test_05_before_end_time_all(self):
         my_dict = {"before_end_time": time.time()}
-        job_records = j.get_jobs(acct_conn, **my_dict)
+        job_records = j.get_jobs(conn, **my_dict)
         self.assertEqual(len(job_records), 18)
 
     # passing a timestamp before the end time of
     # the first completed jobs should return no jobs
     def test_06_before_end_time_none(self):
         my_dict = {"before_end_time": 0}
-        job_records = j.get_jobs(acct_conn, **my_dict)
+        job_records = j.get_jobs(conn, **my_dict)
         self.assertEqual(len(job_records), 0)
 
     # passing a user not in the jobs table
@@ -235,7 +227,7 @@ class TestAccountingCLI(unittest.TestCase):
     @mock.patch("fluxacct.accounting.util.get_username", side_effect=fake_get_username)
     def test_07_by_user_failure(self, *_):
         my_dict = {"user": "9999"}
-        job_records = j.get_jobs(acct_conn, **my_dict)
+        job_records = j.get_jobs(conn, **my_dict)
         self.assertEqual(len(job_records), 0)
 
     # view_jobs_run_by_username() interacts with a
@@ -245,7 +237,7 @@ class TestAccountingCLI(unittest.TestCase):
     @mock.patch("fluxacct.accounting.util.get_username", side_effect=fake_get_username)
     def test_08_by_user_success(self, *_):
         my_dict = {"user": "1001"}
-        job_records = j.get_jobs(acct_conn, **my_dict)
+        job_records = j.get_jobs(conn, **my_dict)
         self.assertEqual(len(job_records), 2)
 
     # passing a combination of params should further
@@ -255,14 +247,14 @@ class TestAccountingCLI(unittest.TestCase):
     @mock.patch("time.time", mock.MagicMock(return_value=9000500))
     def test_09_multiple_params(self, *_):
         my_dict = {"user": "1001", "after_start_time": time.time()}
-        job_records = j.get_jobs(acct_conn, **my_dict)
+        job_records = j.get_jobs(conn, **my_dict)
         self.assertEqual(len(job_records), 1)
 
     # passing no parameters will result in a generic query
     # returning all results
     def test_10_no_options_passed(self):
         my_dict = {}
-        job_records = j.get_jobs(acct_conn, **my_dict)
+        job_records = j.get_jobs(conn, **my_dict)
         self.assertEqual(len(job_records), 18)
 
     # users that have run a lot of jobs should have a larger usage factor
@@ -275,26 +267,26 @@ class TestAccountingCLI(unittest.TestCase):
             "UPDATE job_usage_per_association_table SET value=256 "
             "WHERE username='1002' AND userid=1002 AND bank='C' AND period=0"
         )
-        acct_conn.execute(update_stmt)
+        conn.execute(update_stmt)
         update_stmt = (
             "UPDATE job_usage_per_association_table SET value=64 "
             "WHERE username='1002' AND userid=1002 AND bank='C' AND period=1"
         )
-        acct_conn.execute(update_stmt)
+        conn.execute(update_stmt)
         update_stmt = (
             "UPDATE job_usage_per_association_table SET value=16 "
             "WHERE username='1002' AND userid=1002 AND bank='C' AND period=2"
         )
-        acct_conn.execute(update_stmt)
+        conn.execute(update_stmt)
         update_stmt = (
             "UPDATE job_usage_per_association_table SET value=8 "
             "WHERE username='1002' AND userid=1002 AND bank='C' AND period=3"
         )
-        acct_conn.execute(update_stmt)
-        acct_conn.commit()
+        conn.execute(update_stmt)
+        conn.commit()
 
         usage_factor = jobs.calc_usage_factor(
-            acct_conn,
+            conn,
             pdhl=1,
             user=user,
             bank=bank,
@@ -315,26 +307,26 @@ class TestAccountingCLI(unittest.TestCase):
             "UPDATE job_usage_per_association_table SET value=4096 "
             "WHERE username='1001' AND userid=1001 AND bank='C' AND period=0"
         )
-        acct_conn.execute(update_stmt)
+        conn.execute(update_stmt)
         update_stmt = (
             "UPDATE job_usage_per_association_table SET value=256 "
             "WHERE username='1001' AND userid=1001 AND bank='C' AND period=1"
         )
-        acct_conn.execute(update_stmt)
+        conn.execute(update_stmt)
         update_stmt = (
             "UPDATE job_usage_per_association_table SET value=32 "
             "WHERE username='1001' AND userid=1001 AND bank='C' AND period=2"
         )
-        acct_conn.execute(update_stmt)
+        conn.execute(update_stmt)
         update_stmt = (
             "UPDATE job_usage_per_association_table SET value=16 "
             "WHERE username='1001' AND userid=1001 AND bank='C' AND period=3"
         )
-        acct_conn.execute(update_stmt)
-        acct_conn.commit()
+        conn.execute(update_stmt)
+        conn.commit()
 
         usage_factor = jobs.calc_usage_factor(
-            acct_conn,
+            conn,
             pdhl=1,
             user=user,
             bank=bank,
@@ -350,14 +342,14 @@ class TestAccountingCLI(unittest.TestCase):
             "SELECT last_job_timestamp FROM "
             "job_usage_factor_table WHERE username='1003' AND bank='D'"
         )
-        cur.execute(s_ts)
-        result = cur.fetchall()
+        cursor.execute(s_ts)
+        result = cursor.fetchall()
         ts_old = float(result[0]["last_job_timestamp"])
 
         self.assertEqual(ts_old, 0.0)
 
         usage_factor = jobs.calc_usage_factor(
-            acct_conn,
+            conn,
             pdhl=1,
             user="1003",
             bank="D",
@@ -366,8 +358,8 @@ class TestAccountingCLI(unittest.TestCase):
             user_jobs=user_jobs[(1003, "D")],
         )
 
-        cur.execute(s_ts)
-        ts_new = float(cur.fetchone()[0])
+        cursor.execute(s_ts)
+        ts_new = float(cursor.fetchone()["last_job_timestamp"])
 
         self.assertEqual(ts_new, 9092200.0)
 
@@ -375,15 +367,15 @@ class TestAccountingCLI(unittest.TestCase):
     # historical usage factor was written to association_table
     def test_14_check_usage_factor_in_tables(self):
         select_stmt = "SELECT value FROM job_usage_per_association_table WHERE username='1002' AND bank='C' AND period=0"
-        cur.execute(select_stmt)
-        usage_factor = cur.fetchone()[0]
+        cursor.execute(select_stmt)
+        usage_factor = cursor.fetchone()["value"]
         self.assertEqual(usage_factor, 16956.0)
 
         select_stmt = (
             "SELECT job_usage FROM association_table WHERE username='1002' AND bank='C'"
         )
-        cur.execute(select_stmt)
-        job_usage = cur.fetchone()[0]
+        cursor.execute(select_stmt)
+        job_usage = cursor.fetchone()["job_usage"]
         self.assertEqual(job_usage, 17044.0)
 
     # re-calculating a job usage factor after the end of the last half-life
@@ -397,7 +389,7 @@ class TestAccountingCLI(unittest.TestCase):
         userid = 1001
 
         try:
-            acct_conn.execute(
+            conn.execute(
                 """
                 INSERT INTO jobs (
                     id,
@@ -425,7 +417,7 @@ class TestAccountingCLI(unittest.TestCase):
                 ),
             )
             # commit changes
-            acct_conn.commit()
+            conn.commit()
         # make sure entry is unique
         except sqlite3.IntegrityError as integrity_error:
             print(integrity_error)
@@ -433,11 +425,11 @@ class TestAccountingCLI(unittest.TestCase):
         # convert the above job record to a JobRecord object to be passed to
         # calc_usage_factor()
         job_records = j.convert_to_obj(
-            j.get_jobs(acct_conn, user="1001", bank="C", after_start_time=time.time())
+            j.get_jobs(conn, user="1001", bank="C", after_start_time=time.time())
         )
 
         usage_factor = jobs.calc_usage_factor(
-            acct_conn,
+            conn,
             pdhl=1,
             user=user,
             bank=bank,
@@ -456,7 +448,7 @@ class TestAccountingCLI(unittest.TestCase):
         userid = 1001
 
         usage_factor = jobs.calc_usage_factor(
-            acct_conn,
+            conn,
             pdhl=1,
             user=user,
             bank=bank,
@@ -468,8 +460,8 @@ class TestAccountingCLI(unittest.TestCase):
         self.assertEqual(usage_factor, 4334.0)
 
         select_stmt = "SELECT value FROM job_usage_per_association_table WHERE username='1001' AND bank='C' AND period=0"
-        cur.execute(select_stmt)
-        curr_job_usage = cur.fetchone()[0]
+        cursor.execute(select_stmt)
+        curr_job_usage = cursor.fetchone()["value"]
         self.assertEqual(curr_job_usage, 0.0)
 
     # simulate a half-life period further; assure the new end of the
@@ -482,20 +474,20 @@ class TestAccountingCLI(unittest.TestCase):
             FROM t_half_life_period_table
             WHERE cluster='cluster'
             """
-        cur.execute(s_end_hl)
-        old_hl = cur.fetchone()[0]
+        cursor.execute(s_end_hl)
+        old_hl = cursor.fetchone()["end_half_life_period"]
 
-        jobs.check_end_hl(acct_conn, pdhl=1)
+        jobs.check_end_hl(conn, pdhl=1)
 
-        cur.execute(s_end_hl)
-        new_hl = cur.fetchone()[0]
+        cursor.execute(s_end_hl)
+        new_hl = cursor.fetchone()["end_half_life_period"]
 
         self.assertGreater(new_hl, old_hl)
 
     # removing a user from the flux-accounting DB should NOT remove their job
     # usage history from the job_usage_factor_table
     def test_18_keep_job_usage_records_upon_delete(self):
-        u.delete_user(acct_conn, username="1001", bank="C")
+        u.delete_user(conn, username="1001", bank="C")
 
         select_stmt = """
             SELECT * FROM
@@ -503,8 +495,8 @@ class TestAccountingCLI(unittest.TestCase):
             WHERE username='1001'
             AND bank='C'
             """
-        cur.execute(select_stmt)
-        records = len(cur.fetchall())
+        cursor.execute(select_stmt)
+        records = len(cursor.fetchall())
 
         self.assertEqual(records, 1)
 
@@ -516,15 +508,15 @@ class TestAccountingCLI(unittest.TestCase):
             SELECT job_usage FROM association_table
             WHERE username='1002' AND bank='C'
             """
-        cur.execute(s_stmt)
-        job_usage = cur.fetchone()[0]
+        cursor.execute(s_stmt)
+        job_usage = cursor.fetchone()["job_usage"]
 
         self.assertEqual(job_usage, 17044.0)
 
-        jobs.update_job_usage(acct_conn, pdhl=1)
+        jobs.update_job_usage(conn, pdhl=1)
 
-        cur.execute(s_stmt)
-        job_usage = cur.fetchone()[0]
+        cursor.execute(s_stmt)
+        job_usage = cursor.fetchone()["job_usage"]
         self.assertEqual(job_usage, 8518.0)
 
     # remove database and log file
