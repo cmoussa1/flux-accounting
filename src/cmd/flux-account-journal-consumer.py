@@ -25,6 +25,39 @@ def format_jobid(jobid_format, event):
     return event.jobid.dec
 
 
+def event_extras(event):
+    """
+    Return per-event data carried on the event object but not in its dict.
+
+    The journal yields a redacted jobspec on 'submit' events and the assigned
+    resource set R on 'alloc' events; both are instance attributes (None on all
+    other events), so they are absent from dict(event) / the formatter output.
+    """
+    if event.name == "submit" and event.jobspec is not None:
+        return {"jobspec": event.jobspec}
+    if event.name == "alloc" and event.R is not None:
+        return {"R": event.R}
+    return {}
+
+
+def append_extras(formatted, output_format, event):
+    """Splice event_extras() into an already-formatted json/text event string."""
+    extras = event_extras(event)
+    if not extras:
+        return formatted
+    if output_format == "json":
+        # 'formatted' is a json object ending in '}'; insert keys before it
+        extra_str = "".join(
+            f",{json.dumps(key)}:{json.dumps(val, separators=(',', ':'))}"
+            for key, val in extras.items()
+        )
+        return formatted[:-1] + extra_str + "}"
+    return formatted + "".join(
+        f" {key}={json.dumps(val, separators=(',', ':'))}"
+        for key, val in extras.items()
+    )
+
+
 def format_event_with_ms_epoch(event, output_format):
     """
     Format event with milliseconds-since-epoch timestamp.
@@ -139,25 +172,19 @@ def main():
             # get job ID in requested format
             jobid_str = format_jobid(args.jobid_format, event)
 
-            # format and print the event
+            # format the event (ms-epoch path overrides the formatter)
             if args.timestamp_format == "ms-epoch":
-                if args.format == "json":
-                    print(f'{{"jobid":"{jobid_str}",', end="")
-                    print(
-                        format_event_with_ms_epoch(event, args.format)[1:], flush=True
-                    )
-                else:
-                    print(
-                        f"{jobid_str}: {format_event_with_ms_epoch(event, args.format)}",
-                        flush=True,
-                    )
+                formatted = format_event_with_ms_epoch(event, args.format)
             else:
-                if args.format == "json":
-                    # For JSON format, include jobid
-                    print(f'{{"jobid":"{jobid_str}",', end="")
-                    print(formatter.format(event)[1:], flush=True)
-                else:
-                    print(f"{jobid_str}: {formatter.format(event)}", flush=True)
+                formatted = formatter.format(event)
+            formatted = append_extras(formatted, args.format, event)
+
+            # print, prefixing the jobid
+            if args.format == "json":
+                # splice jobid in as the first key of the json object
+                print(f'{{"jobid":"{jobid_str}",{formatted[1:]}', flush=True)
+            else:
+                print(f"{jobid_str}: {formatted}", flush=True)
     except Exception as exc:
         print(f"error: {exc}")
         consumer.stop()
