@@ -948,6 +948,28 @@ def add_add_queue_arg(subparsers):
         default=INTEGER_MAX,
         metavar="NCORES",
     )
+    subparser_add_queue.add_argument(
+        "-msnq",
+        "--max-sched-nodes",
+        type=int,
+        help=(
+            "max number of nodes in SCHED/RUN state across all associations' jobs in "
+            "this queue at any given time"
+        ),
+        default=INTEGER_MAX,
+        metavar="NNODES",
+    )
+    subparser_add_queue.add_argument(
+        "-mscq",
+        "--max-sched-cores",
+        type=int,
+        help=(
+            "max number of cores in SCHED/RUN state across all associations' jobs in "
+            "this queue at any given time"
+        ),
+        default=INTEGER_MAX,
+        metavar="NCORES",
+    )
 
 
 def add_view_queue_arg(subparsers):
@@ -1061,6 +1083,28 @@ def add_edit_queue_arg(subparsers):
         help=(
             "max number of cores in SCHED state an association can have across all of "
             "their active jobs in this queue at any given time"
+        ),
+        default=None,
+        metavar="NCORES",
+    )
+    subparser_edit_queue.add_argument(
+        "-msnq",
+        "--max-sched-nodes",
+        type=int,
+        help=(
+            "max number of nodes in SCHED/RUN state across all associations' jobs in "
+            "this queue at any given time"
+        ),
+        default=None,
+        metavar="NNODES",
+    )
+    subparser_edit_queue.add_argument(
+        "-mscq",
+        "--max-sched-cores",
+        type=int,
+        help=(
+            "max number of cores in SCHED/RUN state across all associations' jobs in "
+            "this queue at any given time"
         ),
         default=None,
         metavar="NCORES",
