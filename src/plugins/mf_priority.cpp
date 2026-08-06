@@ -30,6 +30,7 @@ extern "C" {
 #include <sstream>
 #include <cstdint>
 #include <new>
+#include <utility>
 
 // custom Association class file
 #include "accounting.hpp"
@@ -520,29 +521,80 @@ error:
 
 
 /*
- * Loop through an association's held_jobs vector and release any held job that
- * now satisfies all of its flux-accounting limits, erasing it from the vector.
- * A single ReleaseCounters tracks jobs already released this pass so that
- * subsequent held jobs are evaluated against the correct remaining headroom.
+ * Release a set of held jobs, gathered as {Association*, Job*} pairs, in job
+ * submission (jobid) order. When a limit spans associations, releasing in
+ * jobid order ensures the earliest-submitted eligible job wins freed headroom
+ * rather than whichever association happens to be visited first.
+ *
+ * The Job* pointers point into associations' held_jobs vectors, so erasing a
+ * released job mid-pass would invalidate the other pointers. Removing the last
+ * flux-accounting dependency fires job.state.sched synchronously, but that
+ * callback only touches the persistent SCHED counters -- never held_jobs -- so
+ * the gathered pointers stay valid for the whole pass. Released jobs are
+ * therefore recorded and erased from their owning associations only after the
+ * pass completes.
  */
-static int check_and_release_held_jobs (flux_plugin_t *p, Association *b)
+static int release_held_jobs_ordered (
+        flux_plugin_t *p,
+        const std::vector<std::pair<Association *, Job *>> &candidates)
 {
     ReleaseCounters counters;
 
-    auto it = b->held_jobs.begin ();
-    while (it != b->held_jobs.end ()) {
-        release_result rc = try_release_held_job (p, b, *it, counters);
+    std::vector<std::pair<Association *, Job *>> ordered (candidates);
+    std::stable_sort (ordered.begin (),
+                      ordered.end (),
+                      [] (const std::pair<Association *, Job *> &lhs,
+                          const std::pair<Association *, Job *> &rhs) {
+                          return lhs.second->id < rhs.second->id;
+                      });
+
+    // jobs fully released this pass, recorded per association for deferred
+    // erase once the pass completes
+    std::map<Association *, std::vector<flux_jobid_t>> to_erase;
+
+    for (auto &candidate : ordered) {
+        Association *b = candidate.first;
+        Job *held_job = candidate.second;
+
+        release_result rc = try_release_held_job (p, b, *held_job, counters);
         if (rc == RELEASE_ERROR)
             return -1;
         if (rc == RELEASE_DONE)
-            // the job was released; erase () returns the next valid iterator
-            it = b->held_jobs.erase (it);
-        else
-            // the job is still held; move onto the next one
-            ++it;
+            to_erase[b].push_back (held_job->id);
+    }
+
+    // deferred erase: remove released jobs from each association's held_jobs
+    for (auto &entry : to_erase) {
+        Association *b = entry.first;
+        std::vector<flux_jobid_t> &ids = entry.second;
+        auto released = [&ids] (const Job &job) {
+            return std::find (ids.begin (), ids.end (), job.id) != ids.end ();
+        };
+        b->held_jobs.erase (
+            std::remove_if (b->held_jobs.begin (),
+                            b->held_jobs.end (),
+                            released),
+            b->held_jobs.end ()
+        );
     }
 
     return 0;
+}
+
+
+/*
+ * Check every held job of a single association and release any that now
+ * satisfy all of their flux-accounting limits. A convenience wrapper over
+ * release_held_jobs_ordered () for the per-association call sites; with one
+ * association, jobid order is the association's own submission order.
+ */
+static int check_and_release_held_jobs (flux_plugin_t *p, Association *b)
+{
+    std::vector<std::pair<Association *, Job *>> candidates;
+    for (auto &held_job : b->held_jobs)
+        candidates.push_back (std::make_pair (b, &held_job));
+
+    return release_held_jobs_ordered (p, candidates);
 }
 
 
