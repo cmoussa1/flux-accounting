@@ -108,6 +108,7 @@ TESTSCRIPTS = \
 	t1103-mf-priority-memo-events.t \
 	t1104-create-db-config.t \
 	t1105-resource-quotas.t \
+	t1106-rebuild-project-usage.t \
 	t5000-valgrind.t \
 	python/t1000-example.py \
 	python/t1001_db.py \
@@ -133,7 +134,8 @@ TESTSCRIPTS = \
 	python/t1021_bank_info.py \
 	python/t1022_job_record_ncores_ngpus.py \
 	python/t1023_weighted_usage.py \
-	python/t1024_accounting_config.py
+	python/t1024_accounting_config.py \
+	python/t1025_project_usage.py
 
 dist_check_SCRIPTS = \
 	$(TESTSCRIPTS) \
