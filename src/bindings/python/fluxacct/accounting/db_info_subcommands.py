@@ -60,50 +60,42 @@ def reconfigure_usage_bins(conn, cursor):
     )
     associations = cursor.fetchall()
 
-    try:
-        # delete all existing period rows for every association
-        cursor.execute("DELETE FROM job_usage_per_association_table")
+    # delete all existing period rows for every association
+    cursor.execute("DELETE FROM job_usage_per_association_table")
 
-        # re-insert the correct number of period rows for every association
-        # initialized to 0.0 under the new configuration
-        for username, userid, bank in associations:
-            for period in range(new_num_periods):
-                cursor.execute(
-                    """
-                    INSERT INTO job_usage_per_association_table
-                    (username, userid, bank, period, value)
-                    VALUES (?, ?, ?, ?, 0.0)
-                    """,
-                    (username, userid, bank, period),
-                )
+    # re-insert the correct number of period rows for every association
+    # initialized to 0.0 under the new configuration
+    for username, userid, bank in associations:
+        for period in range(new_num_periods):
+            cursor.execute(
+                """
+                INSERT INTO job_usage_per_association_table
+                (username, userid, bank, period, value)
+                VALUES (?, ?, ?, ?, 0.0)
+                """,
+                (username, userid, bank, period),
+            )
 
-        # reset last_job_timestamp for all associations so that update_job_usage()
-        # replays all jobs from scratch
-        cursor.execute("UPDATE job_usage_factor_table SET last_job_timestamp=0")
+    # reset last_job_timestamp for all associations so that update_job_usage()
+    # replays all jobs from scratch
+    cursor.execute("UPDATE job_usage_factor_table SET last_job_timestamp=0")
 
-        # reset the half-life period end timestamp so that update_job_usage() starts
-        # a fresh half-life window
-        cursor.execute(
-            """
-            UPDATE t_half_life_period_table
-            SET end_half_life_period=?
-            WHERE cluster='cluster'
-            """,
-            (str(time.time() + new_half_life),),
-        )
-        cursor.execute(
-            "INSERT INTO config_table (key, value) "
-            "VALUES ('reconfigure_time', ?) ON CONFLICT(key)"
-            "DO UPDATE SET value = excluded.value",
-            (time.time(),),
-        )
-
-        conn.commit()
-    except Exception as exc:
-        conn.rollback()
-        raise RuntimeError(
-            f"failed to reconfigure usage bins, rolled back all changes: {exc}"
-        )
+    # reset the half-life period end timestamp so that update_job_usage() starts
+    # a fresh half-life window
+    cursor.execute(
+        """
+        UPDATE t_half_life_period_table
+        SET end_half_life_period=?
+        WHERE cluster='cluster'
+        """,
+        (str(time.time() + new_half_life),),
+    )
+    cursor.execute(
+        "INSERT INTO config_table (key, value) "
+        "VALUES ('reconfigure_time', ?) ON CONFLICT(key)"
+        "DO UPDATE SET value = excluded.value",
+        (time.time(),),
+    )
 
 
 def export_db_info(conn):
@@ -394,38 +386,42 @@ def edit_config(conn, cursor, key_value_strings):
     usage_config_keys = {"node_weight", "core_weight", "gpu_weight"}
     requires_rebin = False
 
-    for key_value_string in key_value_strings:
-        key, value = key_value_string.split("=")
+    try:
+        for key_value_string in key_value_strings:
+            key, value = key_value_string.split("=")
 
-        if key in usage_config_keys:
-            # ensure that weight is a floating-point value
-            float(value)
-        if key in bin_config_keys:
-            # parse value as Flux Standard Duration (FSD)
-            value = parse_fsd(str(value))
-            requires_rebin = True
-        if key == "decay_factor":
-            if (float(value) < 0) or (float(value) > 1):
-                raise ValueError(
-                    "decay_factor must be a floating-point value between 0 and 1"
-                )
-            requires_rebin = True
-        if key == "deny_unknown_queues":
-            # ensure value is exactly "true" or "false" (case-insensitive)
-            if value.lower() not in ["true", "false"]:
-                raise ValueError("deny_unknown_queues must be 'true' or 'false'")
-        cursor.execute(
-            "UPDATE config_table SET value=? WHERE key=?",
-            (value, key),
-        )
-        if cursor.rowcount == 0:
-            raise ValueError(f"key {key} not found in config_table")
+            if key in usage_config_keys:
+                # ensure that weight is a floating-point value
+                float(value)
+            if key in bin_config_keys:
+                # parse value as Flux Standard Duration (FSD)
+                value = parse_fsd(str(value))
+                requires_rebin = True
+            if key == "decay_factor":
+                if (float(value) < 0) or (float(value) > 1):
+                    raise ValueError(
+                        "decay_factor must be a floating-point value between 0 and 1"
+                    )
+                requires_rebin = True
+            if key == "deny_unknown_queues":
+                # ensure value is exactly "true" or "false" (case-insensitive)
+                if value.lower() not in ["true", "false"]:
+                    raise ValueError("deny_unknown_queues must be 'true' or 'false'")
+            cursor.execute(
+                "UPDATE config_table SET value=? WHERE key=?",
+                (value, key),
+            )
+            if cursor.rowcount == 0:
+                raise ValueError(f"key {key} not found in config_table")
 
-    if requires_rebin:
-        # pylint: disable=no-value-for-parameter
-        reconfigure_usage_bins(conn)
+        if requires_rebin:
+            # pylint: disable=no-value-for-parameter
+            reconfigure_usage_bins(conn)
 
-    conn.commit()
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     return 0
 
 

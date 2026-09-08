@@ -98,6 +98,51 @@ class TestAccountingCLI(unittest.TestCase):
         # evaluate the string as a Python list of dictionaries
         self.assertEqual(len(ast.literal_eval(result)), 4)
 
+    def test_09_reconfigure_bins_rollback(self):
+        def fetch_rows(query):
+            return [tuple(row) for row in cur.execute(query).fetchall()]
+
+        config_query = (
+            "SELECT key, value FROM config_table "
+            "WHERE key IN ('priority_usage_reset_period', "
+            "'priority_decay_half_life', 'reconfigure_time') ORDER BY key"
+        )
+        bins_query = (
+            "SELECT username, userid, bank, period, value "
+            "FROM job_usage_per_association_table ORDER BY username, bank, period"
+        )
+        last_job_timestamps_query = (
+            "SELECT username, userid, bank, last_job_timestamp "
+            "FROM job_usage_factor_table ORDER BY username, bank"
+        )
+        half_life_periods_query = (
+            "SELECT cluster, end_half_life_period FROM t_half_life_period_table "
+            "ORDER BY cluster"
+        )
+        config_before = fetch_rows(config_query)
+        bins_before = fetch_rows(bins_query)
+        last_job_timestamps_before = fetch_rows(last_job_timestamps_query)
+        half_life_periods_before = fetch_rows(half_life_periods_query)
+
+        reconfigure_usage_bins = d.reconfigure_usage_bins
+
+        def reconfigure_then_fail(connection):
+            reconfigure_usage_bins(connection)
+            raise RuntimeError("failure after reconfiguring usage bins")
+
+        with patch.object(
+            d, "reconfigure_usage_bins", side_effect=reconfigure_then_fail
+        ):
+            with self.assertRaisesRegex(RuntimeError, "failure after reconfiguring"):
+                d.edit_config(conn, ["priority_usage_reset_period=2h"])
+
+        self.assertEqual(fetch_rows(config_query), config_before)
+        self.assertEqual(fetch_rows(bins_query), bins_before)
+        self.assertEqual(
+            fetch_rows(last_job_timestamps_query), last_job_timestamps_before
+        )
+        self.assertEqual(fetch_rows(half_life_periods_query), half_life_periods_before)
+
     # remove database and log file
     @classmethod
     def tearDownClass(self):
