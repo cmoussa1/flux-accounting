@@ -15,7 +15,7 @@ import sqlite3
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-from fluxacct.accounting import jobs_table_subcommands as j
+from fluxacct.accounting.jobs import records as j
 from fluxacct.accounting import util
 from fluxacct.accounting.util import with_cursor
 

@@ -16,7 +16,7 @@ import sqlite3
 import sys
 
 import fluxacct.accounting
-from fluxacct.accounting import job_usage_calculation as job_usage
+from fluxacct.accounting.jobs import usage
 from fluxacct.accounting import util
 
 LOGGER = logging.getLogger(__name__)
@@ -73,7 +73,7 @@ def main():
         return 1
 
     try:
-        job_usage.rebuild_project_usage(conn)
+        usage.rebuild_project_usage(conn)
     except Exception as exc:
         LOGGER.error("unable to rebuild project usage: %s", exc)
         return 1
