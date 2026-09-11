@@ -19,9 +19,9 @@ import sys
 from unittest import mock
 
 from flux.constants import FLUX_USERID_UNKNOWN
-from fluxacct.accounting import user_subcommands as u
-from fluxacct.accounting import bank_subcommands as b
-from fluxacct.accounting import create_db as c
+from fluxacct.accounting.database import create as c
+from fluxacct.accounting.entities import associations as u
+from fluxacct.accounting.entities import banks as b
 
 
 class TestAccountingCLI(unittest.TestCase):

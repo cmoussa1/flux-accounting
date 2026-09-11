@@ -14,7 +14,7 @@ import os
 import sqlite3
 import time
 
-from fluxacct.accounting import create_db as c
+from fluxacct.accounting.database import create as c
 from fluxacct.accounting import util
 from fluxacct.accounting.config import AccountingConfig
 
