@@ -11,9 +11,9 @@
 ###############################################################
 import sqlite3
 
-import fluxacct.accounting
-from fluxacct.accounting import formatter as fmt
-from fluxacct.accounting import sql_util as sql
+from fluxacct.accounting.database import schema
+from fluxacct.accounting.database import sql
+from fluxacct.accounting.presentation import formatters as fmt
 from fluxacct.accounting.util import with_cursor
 
 ###############################################################
@@ -121,8 +121,8 @@ def list_projects(conn, cur, cols=None, json_fmt=False, format_string=None):
             returned data is in JSON.
     """
     # use all column names if none are passed in
-    cols = cols or fluxacct.accounting.PROJECT_TABLE
-    sql.validate_columns(cols, fluxacct.accounting.PROJECT_TABLE)
+    cols = cols or schema.PROJECT_TABLE
+    sql.validate_columns(cols, schema.PROJECT_TABLE)
     # construct SELECT statement
     select_stmt = f"SELECT {', '.join(cols)} FROM project_table"
     cur.execute(select_stmt)

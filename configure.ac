@@ -148,7 +148,12 @@ AC_CONFIG_FILES([Makefile
   src/bindings/python/Makefile
   src/bindings/python/fluxacct/Makefile
   src/bindings/python/fluxacct/accounting/Makefile
-  src/bindings/python/fluxacct/accounting/__init__.py
+  src/bindings/python/fluxacct/accounting/database/Makefile
+  src/bindings/python/fluxacct/accounting/database/paths.py
+  src/bindings/python/fluxacct/accounting/entities/Makefile
+  src/bindings/python/fluxacct/accounting/jobs/Makefile
+  src/bindings/python/fluxacct/accounting/policy/Makefile
+  src/bindings/python/fluxacct/accounting/presentation/Makefile
   src/plugins/Makefile
   etc/Makefile
   etc/flux-accounting.service
