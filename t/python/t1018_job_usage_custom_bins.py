@@ -16,10 +16,10 @@ import time
 import ast
 from unittest.mock import patch
 
-from fluxacct.accounting import create_db as c
-from fluxacct.accounting import db_info_subcommands as d
-from fluxacct.accounting import bank_subcommands as b
-from fluxacct.accounting import user_subcommands as u
+from fluxacct.accounting.database import create as c
+from fluxacct.accounting.database import info as d
+from fluxacct.accounting.entities import associations as u
+from fluxacct.accounting.entities import banks as b
 
 
 class TestAccountingCLI(unittest.TestCase):

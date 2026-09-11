@@ -19,12 +19,12 @@ from collections import defaultdict
 
 from unittest import mock
 
-from fluxacct.accounting import create_db as c
-from fluxacct.accounting import bank_subcommands as b
-from fluxacct.accounting import user_subcommands as u
-from fluxacct.accounting import job_usage_calculation as jobs
-from fluxacct.accounting import jobs_table_subcommands as j
-from fluxacct.accounting import db_info_subcommands as d
+from fluxacct.accounting.database import create as c
+from fluxacct.accounting.database import info as d
+from fluxacct.accounting.entities import associations as u
+from fluxacct.accounting.entities import banks as b
+from fluxacct.accounting.jobs import records as j
+from fluxacct.accounting.jobs import usage as jobs
 
 
 class TestAccountingCLI(unittest.TestCase):
