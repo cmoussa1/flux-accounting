@@ -68,17 +68,15 @@ enum release_result {
 // held job would observe the same headroom as the first and be released even
 // though the limit no longer permits it.
 //
-// The per-association counters (assoc_run, assoc_sched) are keyed by
-// Association* so a single sweep can span more than one association. The
-// per-queue counters are keyed by queue name, which is already shared across
-// associations.
+// The per-association counters are keyed by Association* so a single sweep can
+// span more than one association.
 struct ReleaseCounters {
     std::map<Association *, int> assoc_run;
     std::map<Association *, int> assoc_sched;
-    std::map<std::string, int> queue_run;
-    std::map<std::string, int> queue_sched;
-    std::map<std::string, int> queue_sched_nodes;
-    std::map<std::string, int> queue_sched_cores;
+    std::map<Association *, std::map<std::string, int>> queue_run;
+    std::map<Association *, std::map<std::string, int>> queue_sched;
+    std::map<Association *, std::map<std::string, int>> queue_sched_nodes;
+    std::map<Association *, std::map<std::string, int>> queue_sched_cores;
 };
 
 /******************************************************************************
@@ -343,7 +341,7 @@ static release_result try_release_held_job (flux_plugin_t *p,
     // queue the held job is submitted under?
     if (b->under_queue_max_run_jobs (held_job.queue,
                                      queues,
-                                     counters.queue_run[held_job.queue]) &&
+                                     counters.queue_run[b][held_job.queue]) &&
         held_job.contains_dep (D_QUEUE_MRJ)) {
         if (flux_jobtap_dependency_remove (p,
                                            held_job.id,
@@ -361,7 +359,7 @@ static release_result try_release_held_job (flux_plugin_t *p,
     if (b->under_queue_max_sched_jobs (
                                     held_job.queue,
                                     queues,
-                                    counters.queue_sched[held_job.queue])
+                                    counters.queue_sched[b][held_job.queue])
         && held_job.contains_dep (D_QUEUE_MSJ)) {
         if (flux_jobtap_dependency_remove (p,
                                            held_job.id,
@@ -381,7 +379,7 @@ static release_result try_release_held_job (flux_plugin_t *p,
                             held_job,
                             held_job.queue,
                             queues,
-                            counters.queue_sched_nodes[held_job.queue]) &&
+                            counters.queue_sched_nodes[b][held_job.queue]) &&
         held_job.contains_dep (D_QUEUE_MSN)) {
         if (flux_jobtap_dependency_remove (p,
                                            held_job.id,
@@ -399,7 +397,7 @@ static release_result try_release_held_job (flux_plugin_t *p,
                             held_job,
                             held_job.queue,
                             queues,
-                            counters.queue_sched_cores[held_job.queue]) &&
+                            counters.queue_sched_cores[b][held_job.queue]) &&
         held_job.contains_dep (D_QUEUE_MSC)) {
         if (flux_jobtap_dependency_remove (p,
                                            held_job.id,
@@ -493,16 +491,18 @@ static release_result try_release_held_job (flux_plugin_t *p,
             // the job is not actually in SCHED state, so use a speculative
             // counter
             counters.assoc_sched[b] += job_assoc_sched;
-            counters.queue_sched[held_job.queue] += job_queue_sched;
-            counters.queue_sched_nodes[held_job.queue] += job_queue_sched_nodes;
-            counters.queue_sched_cores[held_job.queue] += job_queue_sched_cores;
+            counters.queue_sched[b][held_job.queue] += job_queue_sched;
+            counters.queue_sched_nodes[b][held_job.queue]
+                += job_queue_sched_nodes;
+            counters.queue_sched_cores[b][held_job.queue]
+                += job_queue_sched_cores;
         }
         // the Job no longer has any flux-accounting dependencies on it and
         // is now actually being released to SCHED state; commit this job's
         // pending contributions to the sweep-wide counters so subsequent
         // held jobs see the correct, headroom for each limit
         counters.assoc_run[b] += job_assoc_run;
-        counters.queue_run[held_job.queue] += job_queue_run;
+        counters.queue_run[b][held_job.queue] += job_queue_run;
         // the job is releasable; the caller erases it from held_jobs
         return RELEASE_DONE;
     }
