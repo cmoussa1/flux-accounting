@@ -90,6 +90,8 @@ public:
     int priority = 0;
     int max_running_jobs = std::numeric_limits<int>::max ();
     int max_nodes_per_assoc = 2147483647;
+    int max_nodes = std::numeric_limits<int>::max ();
+    int max_cores = std::numeric_limits<int>::max ();
     int max_sched_jobs = 2147483647;
     int max_sched_nodes_per_assoc = std::numeric_limits<int>::max ();
     int max_sched_cores_per_assoc = std::numeric_limits<int>::max ();
