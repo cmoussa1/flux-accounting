@@ -544,6 +544,74 @@ bool Association::under_queue_max_sched_cores (
 }
 
 
+bool under_queue_total_max_sched_nodes (
+                            const Job &job,
+                            const std::string &queue,
+                            const std::map<std::string, Queue> &queues,
+                            const std::map<std::string, int> &queue_nodes)
+{
+    return under_queue_total_max_sched_nodes (job,
+                                              queue,
+                                              queues,
+                                              queue_nodes,
+                                              0);
+}
+
+
+bool under_queue_total_max_sched_nodes (
+                            const Job &job,
+                            const std::string &queue,
+                            const std::map<std::string, Queue> &queues,
+                            const std::map<std::string, int> &queue_nodes,
+                            int pending)
+{
+    auto qit = queues.find (queue);
+    if (qit == queues.end ())
+        return true;
+
+    int cur_nodes = 0;
+    auto nit = queue_nodes.find (queue);
+    if (nit != queue_nodes.end ())
+        cur_nodes = nit->second;
+
+    return (cur_nodes + job.nnodes () + pending) <= qit->second.max_nodes;
+}
+
+
+bool under_queue_total_max_sched_cores (
+                            const Job &job,
+                            const std::string &queue,
+                            const std::map<std::string, Queue> &queues,
+                            const std::map<std::string, int> &queue_cores)
+{
+    return under_queue_total_max_sched_cores (job,
+                                              queue,
+                                              queues,
+                                              queue_cores,
+                                              0);
+}
+
+
+bool under_queue_total_max_sched_cores (
+                            const Job &job,
+                            const std::string &queue,
+                            const std::map<std::string, Queue> &queues,
+                            const std::map<std::string, int> &queue_cores,
+                            int pending)
+{
+    auto qit = queues.find (queue);
+    if (qit == queues.end ())
+        return true;
+
+    int cur_cores = 0;
+    auto cit = queue_cores.find (queue);
+    if (cit != queue_cores.end ())
+        cur_cores = cit->second;
+
+    return (cur_cores + job.ncores () + pending) <= qit->second.max_cores;
+}
+
+
 json_t* convert_queues_to_json (const std::map<std::string, Queue> &queues)
 {
     json_t *root = json_object ();

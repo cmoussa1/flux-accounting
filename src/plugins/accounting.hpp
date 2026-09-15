@@ -30,6 +30,7 @@ extern "C" {
 #include <unordered_map>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 
 #include "job.hpp"
 
@@ -199,6 +200,29 @@ json_t* convert_map_to_json (std::map<int, std::map<std::string, Association>>
 
 // convert the queues map to a JSON object to be returned in query_cb ()
 json_t* convert_queues_to_json (const std::map<std::string, Queue> &queues);
+
+bool under_queue_total_max_sched_nodes (
+                            const Job &job,
+                            const std::string &queue,
+                            const std::map<std::string, Queue> &queues,
+                            const std::map<std::string, int> &queue_nodes);
+bool under_queue_total_max_sched_nodes (
+                            const Job &job,
+                            const std::string &queue,
+                            const std::map<std::string, Queue> &queues,
+                            const std::map<std::string, int> &queue_nodes,
+                            int pending);
+bool under_queue_total_max_sched_cores (
+                            const Job &job,
+                            const std::string &queue,
+                            const std::map<std::string, Queue> &queues,
+                            const std::map<std::string, int> &queue_cores);
+bool under_queue_total_max_sched_cores (
+                            const Job &job,
+                            const std::string &queue,
+                            const std::map<std::string, Queue> &queues,
+                            const std::map<std::string, int> &queue_cores,
+                            int pending);
 
 // convert the projects vector to a JSON object to be returned in query_cb ()
 json_t* convert_projects_to_json (const std::vector<std::string> projects);
