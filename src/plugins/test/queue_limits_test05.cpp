@@ -141,8 +141,8 @@ void association_release_held_job_true ()
 }
 
 /*
- * A job sitting in SCHED state (cur_sched_nodes > 0) counts against the
- * per-queue max_nodes limit even when no job is running yet (cur_nodes == 0).
+ * A job sitting in SCHED state counts against the per-queue max_nodes limit
+ * even when no job is running yet (cur_run_jobs == 0).
  */
 void association_sched_node_counts_against_queue_max ()
 {
@@ -150,8 +150,7 @@ void association_sched_node_counts_against_queue_max ()
     a->cur_run_jobs = 0;
     a->cur_nodes = 0;
     a->queue_usage["bronze"].cur_run_jobs = 0;
-    a->queue_usage["bronze"].cur_nodes = 0;
-    a->queue_usage["bronze"].cur_sched_nodes = 1;
+    a->queue_usage["bronze"].cur_nodes = 1;
 
     Job job;
     job.id = 3;
@@ -162,7 +161,7 @@ void association_sched_node_counts_against_queue_max ()
         "SCHED-state node counts against per-queue max_nodes limit");
 
     // once the SCHED commitment clears, the queue has headroom again
-    a->queue_usage["bronze"].cur_sched_nodes = 0;
+    a->queue_usage["bronze"].cur_nodes = 0;
     ok (a->under_queue_max_resources (job, "bronze", queues) == true,
         "queue has headroom once SCHED commitment clears");
 }
