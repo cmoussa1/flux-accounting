@@ -221,6 +221,94 @@ void association_under_queue_max_sched_jobs_limit_false ()
         "association is not under max_sched_jobs limit");
 }
 
+void association_under_queue_max_run_jobs_pending_usage ()
+{
+    Association a {};
+    std::map<std::string, Queue> test_queues;
+    Usage pending;
+
+    test_queues["bronze"].max_running_jobs = 3;
+    a.queue_usage["bronze"].cur_run_jobs = 1;
+
+    pending.jobs = 1;
+    ok (a.under_queue_max_run_jobs ("bronze", test_queues, pending) == true,
+        "association is under queue max_run_jobs with pending Usage");
+
+    pending.jobs = 2;
+    ok (a.under_queue_max_run_jobs ("bronze", test_queues, pending) == false,
+        "association is not under queue max_run_jobs with pending Usage");
+}
+
+void association_under_queue_max_sched_jobs_pending_usage ()
+{
+    Association a {};
+    std::map<std::string, Queue> test_queues;
+    Usage pending;
+
+    test_queues["bronze"].max_sched_jobs = 3;
+    a.queue_usage["bronze"].cur_sched_jobs = 1;
+
+    pending.jobs = 1;
+    ok (a.under_queue_max_sched_jobs ("bronze", test_queues, pending) == true,
+        "association is under queue max_sched_jobs with pending Usage");
+
+    pending.jobs = 2;
+    ok (a.under_queue_max_sched_jobs ("bronze", test_queues, pending) == false,
+        "association is not under queue max_sched_jobs with pending Usage");
+}
+
+void association_under_queue_max_sched_nodes_pending_usage ()
+{
+    Association a {};
+    std::map<std::string, Queue> test_queues;
+    Job job;
+    Usage pending;
+
+    test_queues["bronze"].max_sched_nodes_per_assoc = 4;
+    a.queue_usage["bronze"].cur_sched_nodes = 1;
+    job.resources["node"] = 2;
+
+    pending.resources["node"] = 1;
+    ok (a.under_queue_max_sched_nodes (job,
+                                       "bronze",
+                                       test_queues,
+                                       pending) == true,
+        "association is under queue max_sched_nodes with pending Usage");
+
+    pending.resources["node"] = 2;
+    ok (a.under_queue_max_sched_nodes (job,
+                                       "bronze",
+                                       test_queues,
+                                       pending) == false,
+        "association is not under queue max_sched_nodes with pending Usage");
+}
+
+void association_under_queue_max_sched_cores_pending_usage ()
+{
+    Association a {};
+    std::map<std::string, Queue> test_queues;
+    Job job;
+    Usage pending;
+
+    test_queues["bronze"].max_sched_cores_per_assoc = 8;
+    a.queue_usage["bronze"].cur_sched_cores = 2;
+    job.resources["core"] = 4;
+
+    pending.resources["core"] = 2;
+    ok (a.under_queue_max_sched_cores (job,
+                                       "bronze",
+                                       test_queues,
+                                       pending) == true,
+        "association is under queue max_sched_cores with pending Usage");
+
+    pending.resources["core"] = 3;
+    ok (a.under_queue_max_sched_cores (job,
+                                       "bronze",
+                                       test_queues,
+                                       pending) == false,
+        "association is not under queue max_sched_cores with pending Usage");
+}
+
 int main (int argc, char* argv[])
 {
     // add an association
@@ -237,6 +325,10 @@ int main (int argc, char* argv[])
     association_under_queue_max_sched_jobs_limit_true ();
     association_under_queue_max_sched_jobs_limit_false ();
     association_under_queue_max_sched_jobs_default ();
+    association_under_queue_max_run_jobs_pending_usage ();
+    association_under_queue_max_sched_jobs_pending_usage ();
+    association_under_queue_max_sched_nodes_pending_usage ();
+    association_under_queue_max_sched_cores_pending_usage ();
 
     // indicate we are done testing
     done_testing ();

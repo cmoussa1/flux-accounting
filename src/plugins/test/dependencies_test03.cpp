@@ -133,6 +133,42 @@ void under_max_run_jobs_per_association_true ()
 }
 
 
+void under_max_run_jobs_with_pending_usage ()
+{
+    Association a {};
+    Usage pending;
+
+    a.max_run_jobs = 3;
+    a.cur_run_jobs = 1;
+
+    pending.jobs = 1;
+    ok (a.under_max_run_jobs (pending) == true,
+        "association is under max_run_jobs with pending Usage");
+
+    pending.jobs = 2;
+    ok (a.under_max_run_jobs (pending) == false,
+        "association is not under max_run_jobs with pending Usage");
+}
+
+
+void under_max_sched_jobs_with_pending_usage ()
+{
+    Association a {};
+    Usage pending;
+
+    a.max_sched_jobs = 3;
+    a.cur_sched_jobs = 1;
+
+    pending.jobs = 1;
+    ok (a.under_max_sched_jobs (pending) == true,
+        "association is under max_sched_jobs with pending Usage");
+
+    pending.jobs = 2;
+    ok (a.under_max_sched_jobs (pending) == false,
+        "association is not under max_sched_jobs with pending Usage");
+}
+
+
 /*
  * Scenario 2: The association has the following limit configuration:
  *
@@ -507,6 +543,8 @@ int main (int argc, char* argv[])
     max_run_jobs_per_association ();
     under_max_run_jobs_per_association_false ();
     under_max_run_jobs_per_association_true ();
+    under_max_run_jobs_with_pending_usage ();
+    under_max_sched_jobs_with_pending_usage ();
 
     max_run_jobs_per_queue_and_per_association ();
     under_max_run_jobs_per_association_and_per_queue_false ();

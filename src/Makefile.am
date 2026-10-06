@@ -108,7 +108,9 @@ data_writer_db_test01_t_LDADD = \
 accounting_test01_t_SOURCES = \
 	plugins/test/accounting_test01.cpp \
 	plugins/accounting.cpp \
-	plugins/accounting.hpp
+	plugins/accounting.hpp \
+	plugins/usage.cpp \
+	plugins/usage.hpp
 accounting_test01_t_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) $(JANSSON_CFLAGS)
 accounting_test01_t_LDADD = \
 	common/libtap/libtap.la \
@@ -130,7 +132,9 @@ dependencies_test03_t_SOURCES = \
 	plugins/job.hpp \
 	plugins/jj.cpp \
 	plugins/accounting.cpp \
-	plugins/accounting.hpp
+	plugins/accounting.hpp \
+	plugins/usage.cpp \
+	plugins/usage.hpp
 dependencies_test03_t_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) $(JANSSON_CFLAGS)
 dependencies_test03_t_LDADD = \
 	common/libtap/libtap.la \
@@ -139,7 +143,9 @@ dependencies_test03_t_LDADD = \
 banks_test04_t_SOURCES = \
 	plugins/test/banks_test04.cpp \
 	plugins/accounting.cpp \
-	plugins/accounting.hpp
+	plugins/accounting.hpp \
+	plugins/usage.cpp \
+	plugins/usage.hpp
 banks_test04_t_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) $(JANSSON_CFLAGS)
 banks_test04_t_LDADD = \
 	common/libtap/libtap.la \
@@ -151,7 +157,9 @@ queue_limits_test05_t_SOURCES = \
 	plugins/accounting.hpp \
 	plugins/job.cpp \
 	plugins/job.hpp \
-	plugins/jj.cpp
+	plugins/jj.cpp \
+	plugins/usage.cpp \
+	plugins/usage.hpp
 queue_limits_test05_t_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) $(JANSSON_CFLAGS)
 queue_limits_test05_t_LDADD = \
 	common/libtap/libtap.la \
@@ -172,7 +180,9 @@ priority_test07_t_SOURCES = \
 	plugins/accounting.hpp \
 	plugins/job.cpp \
 	plugins/job.hpp \
-	plugins/jj.cpp
+	plugins/jj.cpp \
+	plugins/usage.cpp \
+	plugins/usage.hpp
 priority_test07_t_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir) $(JANSSON_CFLAGS)
 priority_test07_t_LDADD = \
 	common/libtap/libtap.la \
