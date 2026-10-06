@@ -32,6 +32,7 @@ extern "C" {
 #include <cstdint>
 
 #include "job.hpp"
+#include "usage.hpp"
 
 // - UNKNOWN_QUEUE: a queue is specified for a submitted job that flux-accounting
 // does not know about
@@ -139,28 +140,28 @@ public:
     // the "pending" parameter in the overloaded functions is used to account
     // for jobs that have been released in the current pass of the held jobs
     // loop but have not yet been reflected in the association's persistent
-    // counters; by passing in the number of released jobs against a particular
-    // limit, we ensure that subsequent jobs in the held jobs vector are
+    // counters; by passing in the usage released against a particular limit,
+    // we ensure that subsequent jobs in the held jobs vector are
     // evaluated against the correct headroom for that limit
     bool under_max_run_jobs ();
-    bool under_max_run_jobs (int pending);
+    bool under_max_run_jobs (const Usage &pending);
     bool under_queue_max_run_jobs (const std::string &queue,
                                    const std::map<std::string, Queue> &queues);
     bool under_queue_max_run_jobs (const std::string &queue,
                                    const std::map<std::string, Queue> &queues,
-                                   int pending);
+                                   const Usage &pending);
     bool under_max_resources (const Job &job);
     bool under_queue_max_resources (
                                   const Job &job,
                                   const std::string &queue,
                                   const std::map<std::string, Queue> &queues);
     bool under_max_sched_jobs ();
-    bool under_max_sched_jobs (int pending);
+    bool under_max_sched_jobs (const Usage &pending);
     bool under_queue_max_sched_jobs (const std::string &queue,
                                      const std::map<std::string, Queue> &queues);
     bool under_queue_max_sched_jobs (const std::string &queue,
                                      const std::map<std::string, Queue> &queues,
-                                     int pending);
+                                     const Usage &pending);
     bool under_queue_max_sched_nodes (const Job &job,
                                       const std::string &queue,
                                       std::map<std::string, Queue> &queues);
@@ -170,11 +171,11 @@ public:
     bool under_queue_max_sched_nodes (const Job &job,
                                       const std::string &queue,
                                       std::map<std::string, Queue> &queues,
-                                      int pending);
+                                      const Usage &pending);
     bool under_queue_max_sched_cores (const Job &job,
                                       const std::string &queue,
                                       std::map<std::string, Queue> &queues,
-                                      int pending);
+                                      const Usage &pending);
 };
 
 class Bank {
