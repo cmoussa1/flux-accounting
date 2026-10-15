@@ -16,6 +16,7 @@ from flux.job.JobID import JobID
 from fluxacct.database import schema
 from fluxacct.database import sql
 from fluxacct.policy import constants
+from fluxacct.policy import expression
 from fluxacct.formatting import formatters as fmt
 from fluxacct import util
 
@@ -64,6 +65,14 @@ class Queue:
     def __init__(self, name, priority):
         self.name = name
         self.priority = priority
+
+
+DEFAULT_PRIORITY_WEIGHTS = {
+    "fairshare": constants.FSHARE_WEIGHT_DEFAULT,
+    "queue": constants.QUEUE_WEIGHT_DEFAULT,
+    "bank": constants.BANK_WEIGHT_DEFAULT,
+    "urgency": constants.URGENCY_WEIGHT_DEFAULT,
+}
 
 
 ###############################################################
@@ -189,6 +198,197 @@ def as_format_string(column_names, rows, format_string):
             f"Invalid column name in format string: {exc.args[0]}.\n"
             f"Available columns: {', '.join(column_names)}"
         )
+
+
+def _priority_weights(conn):
+    cur = conn.cursor()
+    weights = DEFAULT_PRIORITY_WEIGHTS.copy()
+    cur.execute("SELECT factor,weight FROM priority_factor_weight_table")
+    for row in cur.fetchall():
+        weights[row["factor"]] = row["weight"]
+    return weights
+
+
+def _deny_unknown_queues(conn):
+    cur = conn.cursor()
+    cur.execute("SELECT value FROM config_table WHERE key='deny_unknown_queues'")
+    row = cur.fetchone()
+    return bool(row and str(row["value"]).lower() == "true")
+
+
+def _default_bank(cur, username):
+    cur.execute(
+        "SELECT default_bank FROM association_table WHERE username=? LIMIT 1",
+        (username,),
+    )
+    row = cur.fetchone()
+    if row is None:
+        return None
+    return row["default_bank"]
+
+
+def _fetch_associations(cur, username, bank=None, all_banks=False):
+    if all_banks:
+        cur.execute(
+            """
+            SELECT * FROM association_table
+            WHERE username=?
+            ORDER BY bank
+            """,
+            (username,),
+        )
+        rows = cur.fetchall()
+        if not rows:
+            raise ValueError(f"missing association for user {username}")
+        return rows
+
+    if bank is None:
+        bank = _default_bank(cur, username)
+        if bank is None:
+            raise ValueError(f"missing association for user {username}")
+
+    cur.execute(
+        """
+        SELECT * FROM association_table
+        WHERE username=? AND bank=?
+        """,
+        (username, bank),
+    )
+    row = cur.fetchone()
+    if row is None:
+        raise ValueError(f"missing association for user {username} bank {bank}")
+    return [row]
+
+
+def _bank_priorities(cur):
+    cur.execute("SELECT bank,priority FROM bank_table")
+    return {row["bank"]: row["priority"] for row in cur.fetchall()}
+
+
+def _queue_priorities(cur):
+    cur.execute("SELECT queue,priority FROM queue_table")
+    return {row["queue"]: row["priority"] for row in cur.fetchall()}
+
+
+def _queue_list(value):
+    if not value:
+        return []
+    return [queue.strip() for queue in value.split(",") if queue.strip()]
+
+
+def _estimate_row(
+    row, queue, urgency, weights, bank_priorities, queue_priorities, deny_unknown
+):
+    queue_priority = 0
+    accepted = True
+    rejection_reason = ""
+    queues = _queue_list(row["queues"])
+
+    if row["active"] == 0:
+        accepted = False
+        rejection_reason = "user/bank entry has been disabled from accounting DB"
+    elif queue is not None and queue not in queue_priorities and deny_unknown:
+        accepted = False
+        rejection_reason = (
+            f'queue "{queue}" is unknown to flux-accounting and '
+            "deny-unknown-queues is enabled"
+        )
+    elif queue is not None and queue in queue_priorities and queue not in queues:
+        accepted = False
+        rejection_reason = (
+            f'queue "{queue}" not valid for user; valid queues for user: '
+            f'{",".join(queues)}'
+        )
+    elif queue is not None and queue in queue_priorities:
+        queue_priority = queue_priorities[queue]
+
+    variables = {
+        "fairshare": row["fairshare"],
+        "queue_priority": queue_priority,
+        "bank_priority": bank_priorities.get(row["bank"], 0.0),
+        "urgency": urgency,
+        "w_fairshare": weights["fairshare"],
+        "w_queue": weights["queue"],
+        "w_bank": weights["bank"],
+        "w_urgency": weights["urgency"],
+    }
+    priority = None
+    if accepted:
+        priority, _ = expression.calculate_priority(urgency, variables)
+
+    return {
+        "username": row["username"],
+        "userid": row["userid"],
+        "bank": row["bank"],
+        "default_bank": row["default_bank"],
+        "queue": "" if queue is None else queue,
+        "fairshare": row["fairshare"],
+        "queue_priority": queue_priority,
+        "bank_priority": bank_priorities.get(row["bank"], 0.0),
+        "urgency": urgency,
+        "w_fairshare": weights["fairshare"],
+        "w_queue": weights["queue"],
+        "w_bank": weights["bank"],
+        "w_urgency": weights["urgency"],
+        "accepted": accepted,
+        "rejection_reason": rejection_reason,
+        "priority": priority,
+        "limits_evaluated": False,
+    }
+
+
+def _format_estimate_table(rows):
+    header = (
+        f"{'USER':<10}{'BANK':<10}{'QUEUE':<10}{'FAIRSHARE':<11}"
+        f"{'QPRIO':<8}{'BANKPRIO':<10}{'URGENCY':<8}{'PRIORITY':<12}"
+        f"{'STATUS':<10}{'REASON'}"
+    )
+    lines = [header]
+    for row in rows:
+        status = "accepted" if row["accepted"] else "rejected"
+        priority = "" if row["priority"] is None else row["priority"]
+        lines.append(
+            f"{row['username']:<10}{row['bank']:<10}{row['queue']:<10}"
+            f"{row['fairshare']:<11}{row['queue_priority']:<8}"
+            f"{row['bank_priority']:<10}{row['urgency']:<8}{priority:<12}"
+            f"{status:<10}{row['rejection_reason']}"
+        )
+    return "\n".join(lines)
+
+
+def _format_estimate_verbose(rows):
+    lines = []
+    for row in rows:
+        lines.append(f"{row['username']}/{row['bank']}")
+        if not row["accepted"]:
+            lines.append(f"rejected: {row['rejection_reason']}")
+            continue
+        lines.append(
+            "= (FAIRSHARE * FAIRSHARE_WEIGHT) + "
+            "(QUEUE_PRIORITY * QUEUE_WEIGHT) + "
+            "(BANK_PRIORITY * BANK_WEIGHT) + "
+            "(URGENCY_WEIGHT * (URGENCY - 16))"
+        )
+        lines.append(
+            f"= ({row['fairshare']} * {row['w_fairshare']}) + "
+            f"({row['queue_priority']} * {row['w_queue']}) + "
+            f"({row['bank_priority']} * {row['w_bank']}) + "
+            f"({row['w_urgency']} * ({row['urgency']} - 16))"
+        )
+        lines.append(f"= {row['priority']}")
+    return "\n".join(lines)
+
+
+def _estimate_notes():
+    return "\n".join(
+        [
+            "",
+            "Notes:",
+            "  Accounting limits are not evaluated by this estimate.",
+            "  Omitted queues and permitted unknown queues use queue priority 0.",
+            "  Estimates use the current database and may lag the loaded plugin.",
+        ]
+    )
 
 
 def construct_priority_calculation(job, priority_weights, queues, banks):
@@ -345,6 +545,71 @@ def reset_factors(conn):
 
     conn.commit()
     return 0
+
+
+def estimate_priority(
+    conn,
+    username,
+    bank=None,
+    all_banks=False,
+    queue=None,
+    urgency=expression.URGENCY_DEFAULT,
+    json_fmt=False,
+    format_string="",
+    verbose=False,
+):
+    """
+    Estimate the priority a submitted job would receive from the plugin.
+
+    Args:
+        conn: the SQLite Connection object.
+        username: the user whose association should be estimated.
+        bank: the bank to charge.
+        all_banks: estimate every association for the user.
+        queue: optional queue name.
+        urgency: Flux job urgency.
+        json_fmt: output data in JSON format.
+        format_string: optional custom format string.
+        verbose: include calculation details.
+    """
+    urgency = int(urgency)
+    if urgency < expression.URGENCY_HOLD or urgency > expression.URGENCY_EXPEDITE:
+        raise ValueError("urgency must be between 0 and 31")
+
+    cur = conn.cursor()
+    associations = _fetch_associations(cur, username, bank, all_banks)
+    weights = _priority_weights(conn)
+    bank_priorities = _bank_priorities(cur)
+    queue_priorities = _queue_priorities(cur)
+    deny_unknown = _deny_unknown_queues(conn)
+    rows = [
+        _estimate_row(
+            row,
+            queue,
+            urgency,
+            weights,
+            bank_priorities,
+            queue_priorities,
+            deny_unknown,
+        )
+        for row in associations
+    ]
+
+    if not all_banks and rows and not rows[0]["accepted"]:
+        raise ValueError(rows[0]["rejection_reason"])
+
+    if format_string:
+        column_names = list(rows[0].keys()) if rows else []
+        return as_format_string(
+            column_names,
+            [[row[column] for column in column_names] for row in rows],
+            format_string,
+        )
+    if json_fmt:
+        return json.dumps(rows)
+    if verbose:
+        return _format_estimate_verbose(rows) + _estimate_notes()
+    return _format_estimate_table(rows) + _estimate_notes()
 
 
 def job_priorities(
