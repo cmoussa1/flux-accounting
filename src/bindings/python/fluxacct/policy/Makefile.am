@@ -3,6 +3,7 @@ policypydir = $(fluxpydir)/policy
 policypy_PYTHON = \
 	__init__.py \
 	constants.py \
+	expression.py \
 	priorities.py \
 	fairshare.py
 
