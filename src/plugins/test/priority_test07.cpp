@@ -14,6 +14,7 @@ extern "C" {
 #endif
 }
 
+#include <cstdlib>
 #include <map>
 #include <string>
 
@@ -126,6 +127,89 @@ static void missing_weights_default_to_plugin_defaults ()
         "missing priority factor weights use plugin defaults");
 }
 
+/*
+ * A rounded value above FLUX_JOB_PRIORITY_MAX clamps before conversion to
+ * int64_t, avoiding undefined behavior.
+ */
+static void upper_sum_clamps_to_max ()
+{
+    std::map<std::string, int> high_weights = {
+        {"fairshare", 0},
+        {"queue", DEFAULT_QUEUE_WEIGHT},
+        {"bank", 0},
+        {"urgency", 0},
+    };
+    int64_t prio = calc_priority (0.0,
+                                  500000,
+                                  0.0,
+                                  FLUX_JOB_URGENCY_DEFAULT,
+                                  high_weights);
+    ok (prio == FLUX_JOB_PRIORITY_MAX,
+        "a high weighted sum clamps to FLUX_JOB_PRIORITY_MAX");
+}
+
+static double fixture_number (json_t *vars, const char *name)
+{
+    return json_number_value (json_object_get (vars, name));
+}
+
+static int fixture_integer (json_t *object, const char *name)
+{
+    return static_cast<int> (json_integer_value (json_object_get (object,
+                                                                  name)));
+}
+
+/*
+ * Consume the shared default-formula fixtures used by the Python expression
+ * tests. PR #1 fixtures do not include compiled trees, so C++ only needs the
+ * resolved variables and expected result.
+ */
+static void shared_default_formula_fixtures ()
+{
+    const char *fixture_dir = getenv ("PRIORITY_FIXTURES_DIR");
+    if (!fixture_dir) {
+        ok (false, "PRIORITY_FIXTURES_DIR is set");
+        return;
+    }
+
+    std::string path = std::string (fixture_dir) + "/fixtures.json";
+    json_error_t error;
+    json_t *fixtures = json_load_file (path.c_str (), 0, &error);
+    if (!fixtures) {
+        ok (false, "shared priority fixtures load");
+        return;
+    }
+
+    size_t index;
+    json_t *fixture;
+    json_array_foreach (fixtures, index, fixture) {
+        json_t *vars = json_object_get (fixture, "vars");
+        const char *name = json_string_value (json_object_get (fixture,
+                                                               "name"));
+        std::map<std::string, int> fixture_weights = {
+            {"fairshare",
+             static_cast<int> (fixture_number (vars, "w_fairshare"))},
+            {"queue", static_cast<int> (fixture_number (vars, "w_queue"))},
+            {"bank", static_cast<int> (fixture_number (vars, "w_bank"))},
+            {"urgency", static_cast<int> (fixture_number (vars, "w_urgency"))},
+        };
+        int64_t priority = calc_priority (
+            fixture_number (vars, "fairshare"),
+            static_cast<int> (fixture_number (vars, "queue_priority")),
+            fixture_number (vars, "bank_priority"),
+            fixture_integer (fixture, "urgency"),
+            fixture_weights);
+
+        ok (priority == json_integer_value (json_object_get (fixture,
+                                                             "expected")),
+            "%s", name);
+        ok (json_is_false (json_object_get (fixture, "fallback")),
+            "%s: fallback is false for default formula", name);
+    }
+
+    json_decref (fixtures);
+}
+
 int main (int argc, char *argv[])
 {
     hold_urgency_returns_min ();
@@ -133,6 +217,8 @@ int main (int argc, char *argv[])
     weighted_sum_orders_by_factors ();
     negative_sum_clamps_to_min ();
     missing_weights_default_to_plugin_defaults ();
+    upper_sum_clamps_to_max ();
+    shared_default_formula_fixtures ();
 
     // indicate we are done testing
     done_testing ();

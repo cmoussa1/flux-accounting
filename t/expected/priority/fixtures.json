@@ -1,0 +1,223 @@
+[
+  {
+    "name": "hold urgency short-circuits to minimum",
+    "expression": null,
+    "tree": null,
+    "vars": {
+      "fairshare": 0.5,
+      "queue_priority": 0,
+      "bank_priority": 0.0,
+      "w_fairshare": 100000,
+      "w_queue": 10000,
+      "w_bank": 0,
+      "w_urgency": 1000
+    },
+    "urgency": 0,
+    "expected": 0,
+    "fallback": false
+  },
+  {
+    "name": "expedite urgency short-circuits to maximum",
+    "expression": null,
+    "tree": null,
+    "vars": {
+      "fairshare": 0.5,
+      "queue_priority": 0,
+      "bank_priority": 0.0,
+      "w_fairshare": 100000,
+      "w_queue": 10000,
+      "w_bank": 0,
+      "w_urgency": 1000
+    },
+    "urgency": 31,
+    "expected": 4294967295,
+    "fallback": false
+  },
+  {
+    "name": "urgency 1 adds negative default urgency contribution",
+    "expression": null,
+    "tree": null,
+    "vars": {
+      "fairshare": 0.5,
+      "queue_priority": 0,
+      "bank_priority": 0.0,
+      "w_fairshare": 100000,
+      "w_queue": 10000,
+      "w_bank": 0,
+      "w_urgency": 1000
+    },
+    "urgency": 1,
+    "expected": 35000,
+    "fallback": false
+  },
+  {
+    "name": "urgency 15 is one default weight below normal",
+    "expression": null,
+    "tree": null,
+    "vars": {
+      "fairshare": 0.5,
+      "queue_priority": 0,
+      "bank_priority": 0.0,
+      "w_fairshare": 100000,
+      "w_queue": 10000,
+      "w_bank": 0,
+      "w_urgency": 1000
+    },
+    "urgency": 15,
+    "expected": 49000,
+    "fallback": false
+  },
+  {
+    "name": "urgency 17 is one default weight above normal",
+    "expression": null,
+    "tree": null,
+    "vars": {
+      "fairshare": 0.5,
+      "queue_priority": 0,
+      "bank_priority": 0.0,
+      "w_fairshare": 100000,
+      "w_queue": 10000,
+      "w_bank": 0,
+      "w_urgency": 1000
+    },
+    "urgency": 17,
+    "expected": 51000,
+    "fallback": false
+  },
+  {
+    "name": "urgency 30 is fourteen default weights above normal",
+    "expression": null,
+    "tree": null,
+    "vars": {
+      "fairshare": 0.5,
+      "queue_priority": 0,
+      "bank_priority": 0.0,
+      "w_fairshare": 100000,
+      "w_queue": 10000,
+      "w_bank": 0,
+      "w_urgency": 1000
+    },
+    "urgency": 30,
+    "expected": 64000,
+    "fallback": false
+  },
+  {
+    "name": "negative raw value clamps to minimum",
+    "expression": null,
+    "tree": null,
+    "vars": {
+      "fairshare": 0.0,
+      "queue_priority": 0,
+      "bank_priority": 0.0,
+      "w_fairshare": 100000,
+      "w_queue": 10000,
+      "w_bank": 0,
+      "w_urgency": 1000
+    },
+    "urgency": 1,
+    "expected": 0,
+    "fallback": false
+  },
+  {
+    "name": "large queue contribution clamps to maximum",
+    "expression": null,
+    "tree": null,
+    "vars": {
+      "fairshare": 0.0,
+      "queue_priority": 500000,
+      "bank_priority": 0.0,
+      "w_fairshare": 100000,
+      "w_queue": 10000,
+      "w_bank": 0,
+      "w_urgency": 1000
+    },
+    "urgency": 16,
+    "expected": 4294967295,
+    "fallback": false
+  },
+  {
+    "name": "2.5 rounds half away from zero to 3",
+    "expression": null,
+    "tree": null,
+    "vars": {
+      "fairshare": 2.5,
+      "queue_priority": 0,
+      "bank_priority": 0.0,
+      "w_fairshare": 1,
+      "w_queue": 0,
+      "w_bank": 0,
+      "w_urgency": 0
+    },
+    "urgency": 16,
+    "expected": 3,
+    "fallback": false
+  },
+  {
+    "name": "3.5 rounds half away from zero to 4",
+    "expression": null,
+    "tree": null,
+    "vars": {
+      "fairshare": 3.5,
+      "queue_priority": 0,
+      "bank_priority": 0.0,
+      "w_fairshare": 1,
+      "w_queue": 0,
+      "w_bank": 0,
+      "w_urgency": 0
+    },
+    "urgency": 16,
+    "expected": 4,
+    "fallback": false
+  },
+  {
+    "name": "precision edge just below half rounds to zero",
+    "expression": null,
+    "tree": null,
+    "vars": {
+      "fairshare": 0.49999999999999994,
+      "queue_priority": 0,
+      "bank_priority": 0.0,
+      "w_fairshare": 1,
+      "w_queue": 0,
+      "w_bank": 0,
+      "w_urgency": 0
+    },
+    "urgency": 16,
+    "expected": 0,
+    "fallback": false
+  },
+  {
+    "name": "non-default weights combine in plugin order to 113",
+    "expression": null,
+    "tree": null,
+    "vars": {
+      "fairshare": 5.0,
+      "queue_priority": 7,
+      "bank_priority": 11.0,
+      "w_fairshare": 10,
+      "w_queue": 2,
+      "w_bank": 3,
+      "w_urgency": 4
+    },
+    "urgency": 20,
+    "expected": 113,
+    "fallback": false
+  },
+  {
+    "name": "nonzero bank contribution 22.5 rounds to 23",
+    "expression": null,
+    "tree": null,
+    "vars": {
+      "fairshare": 0.0,
+      "queue_priority": 0,
+      "bank_priority": 2.25,
+      "w_fairshare": 0,
+      "w_queue": 0,
+      "w_bank": 10,
+      "w_urgency": 0
+    },
+    "urgency": 16,
+    "expected": 23,
+    "fallback": false
+  }
+]

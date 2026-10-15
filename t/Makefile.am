@@ -114,6 +114,7 @@ TESTSCRIPTS = \
 	t1109-issue982.t \
 	t1110-issue987.t \
 	t1111-continuous-usage-decay.t \
+	t1112-flux-account-estimate-priority.t \
 	t5000-valgrind.t \
 	python/t1000-example.py \
 	python/t1001_db.py \
@@ -141,7 +142,9 @@ TESTSCRIPTS = \
 	python/t1023_weighted_usage.py \
 	python/t1024_accounting_config.py \
 	python/t1025_project_usage.py \
-	python/t1026_continuous_decay.py
+	python/t1026_continuous_decay.py \
+	python/t1027_priority_expression.py \
+	python/t1028_estimate_priority.py
 
 dist_check_SCRIPTS = \
 	$(TESTSCRIPTS) \

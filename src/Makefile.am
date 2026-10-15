@@ -66,7 +66,8 @@ T_LOG_DRIVER = env AM_TAP_AWK='$(AWK)' $(SHELL) \
 AM_TESTS_ENVIRONMENT = \
 	export ACCOUNTS_DATA_DIR="$(abs_top_srcdir)/src/fairness/weighted_tree/test/accounts_data"; \
 	export ACCOUNTING_DB_DATA_DIR="$(abs_top_srcdir)/t/expected/test_dbs"; \
-	export ACCOUNTING_TEST_DB_DIR="$(abs_top_srcdir)/src/fairness/reader/test/accounting_db_data";
+	export ACCOUNTING_TEST_DB_DIR="$(abs_top_srcdir)/src/fairness/reader/test/accounting_db_data"; \
+	export PRIORITY_FIXTURES_DIR="$(abs_top_srcdir)/t/expected/priority";
 
 weighted_tree_test01_t_SOURCES = \
 	fairness/weighted_tree/test/weighted_tree_test01.cpp \
