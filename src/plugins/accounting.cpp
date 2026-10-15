@@ -287,22 +287,30 @@ int64_t calc_priority (double fairshare,
     if (urgency == FLUX_JOB_URGENCY_EXPEDITE)
         return FLUX_JOB_PRIORITY_MAX;
 
-    int64_t priority = round (
-        (get_priority_weight (weights,
-                              "fairshare",
-                              DEFAULT_FSHARE_WEIGHT) * fairshare) +
-        (get_priority_weight (weights,
-                              "queue",
-                              DEFAULT_QUEUE_WEIGHT) * queue_factor) +
-        (get_priority_weight (weights,
-                              "bank",
-                              DEFAULT_BANK_WEIGHT) * bank_factor) +
-        (get_priority_weight (weights,
-                              "urgency",
-                              DEFAULT_URGENCY_WEIGHT) *
-            (urgency - FLUX_JOB_URGENCY_DEFAULT)));
+    double priority = std::round (
+        (static_cast<double> (get_priority_weight (weights,
+                                                  "fairshare",
+                                                  DEFAULT_FSHARE_WEIGHT))
+            * fairshare) +
+        (static_cast<double> (get_priority_weight (weights,
+                                                  "queue",
+                                                  DEFAULT_QUEUE_WEIGHT))
+            * queue_factor) +
+        (static_cast<double> (get_priority_weight (weights,
+                                                  "bank",
+                                                  DEFAULT_BANK_WEIGHT))
+            * bank_factor) +
+        (static_cast<double> (get_priority_weight (weights,
+                                                  "urgency",
+                                                  DEFAULT_URGENCY_WEIGHT))
+            * (urgency - FLUX_JOB_URGENCY_DEFAULT)));
 
-    return priority < 0 ? FLUX_JOB_PRIORITY_MIN : priority;
+    if (priority < FLUX_JOB_PRIORITY_MIN)
+        return FLUX_JOB_PRIORITY_MIN;
+    if (priority > FLUX_JOB_PRIORITY_MAX)
+        return FLUX_JOB_PRIORITY_MAX;
+
+    return static_cast<int64_t> (priority);
 }
 
 
