@@ -95,6 +95,7 @@ class AccountingService:
             "view_config",
             "list_configs",
             "bank_info",
+            "estimate_priority",
         ]
 
         privileged_endpoints = [
@@ -722,6 +723,43 @@ class AccountingService:
             handle.respond_error(msg, 0, f"jobs: missing key in payload: {exc}")
         except Exception as exc:
             handle.respond_error(msg, 0, f"jobs: {type(exc).__name__}: {exc}")
+
+    def estimate_priority(self, handle, watcher, msg, arg):
+        try:
+            urgency = int(msg.payload.get("urgency", 16))
+            owner_role = getattr(flux.constants, "FLUX_ROLE_OWNER", 1)
+            if urgency > 16 and not msg.rolemask & owner_role:
+                handle.respond_error(
+                    msg,
+                    0,
+                    "estimate-priority: only the instance owner can submit "
+                    "with urgency >16",
+                )
+                return
+
+            val = prio.estimate_priority(
+                conn=self.conn,
+                username=msg.payload["username"],
+                bank=msg.payload.get("bank"),
+                all_banks=msg.payload.get("all_banks"),
+                queue=msg.payload.get("queue"),
+                urgency=urgency,
+                json_fmt=msg.payload.get("json"),
+                format_string=msg.payload.get("format"),
+                verbose=msg.payload.get("verbose"),
+            )
+
+            payload = {"estimate_priority": val}
+
+            handle.respond(msg, payload)
+        except KeyError as exc:
+            handle.respond_error(
+                msg, 0, f"estimate-priority: missing key in payload: {exc}"
+            )
+        except Exception as exc:
+            handle.respond_error(
+                msg, 0, f"estimate-priority: {type(exc).__name__}: {exc}"
+            )
 
     def show_usage(self, handle, watcher, msg, arg):
         try:

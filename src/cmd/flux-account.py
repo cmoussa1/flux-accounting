@@ -13,12 +13,13 @@ import argparse
 import sys
 import logging
 import subprocess
+import os
 
 import flux
 from flux.constants import FLUX_USERID_UNKNOWN
 from fluxacct.database import create as c
 from fluxacct.database import paths, schema
-from fluxacct.util import INTEGER_MAX
+from fluxacct.util import INTEGER_MAX, get_username
 
 
 def add_path_arg(parser):
@@ -1466,6 +1467,64 @@ def add_jobs_arg(subparsers):
     )
 
 
+def add_estimate_priority_arg(subparsers):
+    subparser_estimate = subparsers.add_parser(
+        "estimate-priority",
+        help="estimate a user's job priority without submitting a job",
+        formatter_class=flux.util.help_formatter(),
+    )
+    subparser_estimate.set_defaults(func="estimate_priority")
+    subparser_estimate.add_argument(
+        "username",
+        nargs="?",
+        help="username to estimate priority for",
+        metavar="USERNAME",
+    )
+    group = subparser_estimate.add_mutually_exclusive_group()
+    group.add_argument(
+        "--bank",
+        help="estimate priority under BANK",
+        metavar="BANK",
+    )
+    group.add_argument(
+        "--all-banks",
+        action="store_true",
+        help="estimate priority under every association for USERNAME",
+    )
+    subparser_estimate.add_argument(
+        "--queue",
+        help="estimate priority with QUEUE as the submitted queue",
+        metavar="QUEUE",
+    )
+    subparser_estimate.add_argument(
+        "--urgency",
+        type=int,
+        default=16,
+        choices=range(0, 32),
+        metavar="N",
+        help="estimate priority with urgency N, from 0 to 31",
+    )
+    subparser_estimate.add_argument(
+        "--json",
+        action="store_true",
+        help="print output in JSON format",
+    )
+    subparser_estimate.add_argument(
+        "-o",
+        "--format",
+        type=str,
+        default="",
+        help="specify output format using Python's string format syntax",
+        metavar="FORMAT",
+    )
+    subparser_estimate.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="print the priority calculation",
+    )
+
+
 def add_show_usage_arg(subparsers):
     subparsers_visuals = subparsers.add_parser(
         "show-usage",
@@ -1738,6 +1797,7 @@ def add_arguments_to_parser(parser, subparsers):
     add_list_priority_factors(subparsers)
     add_reset_priority_factors_arg(subparsers)
     add_jobs_arg(subparsers)
+    add_estimate_priority_arg(subparsers)
     add_show_usage_arg(subparsers)
     add_edit_all_users_arg(subparsers)
     add_synchronize_userids_arg(subparsers)
@@ -1791,6 +1851,7 @@ def select_accounting_function(args, parser):
         "list_factors": "accounting.list_factors",
         "reset_factors": "accounting.reset_factors",
         "jobs": "accounting.jobs",
+        "estimate_priority": "accounting.estimate_priority",
         "show_usage": "accounting.show_usage",
         "edit_all_users": "accounting.edit_all_users",
         "sync_userids": "accounting.sync_userids",
@@ -1803,6 +1864,9 @@ def select_accounting_function(args, parser):
         "delete_config": "accounting.delete_config",
         "list_configs": "accounting.list_configs",
     }
+
+    if args.func == "estimate_priority" and data.get("username") is None:
+        data["username"] = get_username(os.getuid())
 
     if args.func in func_map:
         return_val = flux.Flux().rpc(func_map[args.func], data).get()
