@@ -16,19 +16,27 @@ importance. In this document, we will explain the factors that contribute to
 the calculation of a job's priority as well as how to customize how job
 priority is calculated.
 
-Priority 0 is reserved for jobs with a hold urgency of 0. If the calculated
-priority for a job with any other urgency rounds to 0 or below, the priority
-plugin assigns priority 1, the lowest priority that can be scheduled.
+Priority 0 holds a job from scheduling. It is used for jobs with a hold
+urgency of 0 and temporarily for pending jobs whose accounting association
+is unavailable after a plugin reload. If the calculated priority for a job
+with any other urgency rounds to 0 or below, the priority plugin assigns
+priority 1, the lowest priority that can be scheduled.
 
-When the plugin is reloaded without accounting data, new jobs wait in
-PRIORITY. Jobs that run before data arrives, including jobs already
-running at reload, continue with temporary accounting charges. When
-their association arrives, the plugin transfers those charges before
-releasing held work, preserving any bank already recorded in jobspec.
-If the association is still absent, running jobs are allowed to finish;
-the plugin logs the unresolved association once per job during that
-plugin load and retries on later updates. Temporary charges are released
-when a job finishes, even if accounting data never arrives.
+When the plugin is reloaded without accounting data, ordinary jobs already
+in SCHED remain there with priority 0 until their association data is loaded
+and they are reprioritized. New jobs wait in PRIORITY. A data update restores
+normal priority calculation without changing the job's urgency or a bank
+already recorded in its jobspec. User-held jobs remain held.
+
+This temporary hold is not a strict barrier against execution: Flux's
+expedite urgency overrides it, and an allocation already in flight may
+still succeed. These jobs and jobs already running at reload continue
+with temporary accounting charges. When their association arrives, the
+plugin transfers those charges before releasing held work. If the
+association is still absent, running jobs are allowed to finish; the
+plugin logs the unresolved association once per job during that plugin
+load and retries on later updates. Temporary charges are released when a
+job finishes, even if accounting data never arrives.
 
 ************************
 The Priority Calculation
