@@ -264,58 +264,6 @@ static int add_special_association (flux_plugin_t *p, flux_t *h, int userid)
 
 
 /*
- * Using the jobspec from a job, increment the cur_nodes and cur_cores counts
- * for an association.
- */
-static int increment_resources (Association *b,
-                                const std::string &queue,
-                                json_t *jobspec)
-{
-    jj_counts counts;
-
-    if (jj_get_counts_json (jobspec, counts) < 0)
-        return -1;
-
-    // after a successful parse the node and core keys are guaranteed to
-    // be present in the counts map with counts of at least 1
-    b->cur_nodes = b->cur_nodes + counts.get ("node");
-    b->cur_cores = b->cur_cores + counts.get ("core");
-
-    // increment cur_nodes for queue
-    if (!queue.empty ())
-        b->queue_usage[queue].cur_nodes = b->queue_usage[queue].cur_nodes +
-                                          counts.get ("node");
-
-    return 0;
-}
-
-
-/*
- * Using the jobspec from a job, decrement the cur_nodes and cur_cores counts
- * for an association.
- */
-static int decrement_resources (Association *b,
-                                const std::string &queue,
-                                json_t *jobspec)
-{
-    jj_counts counts;
-
-    if (jj_get_counts_json (jobspec, counts) < 0)
-        return -1;
-
-    b->cur_nodes = b->cur_nodes - counts.get ("node");
-    b->cur_cores = b->cur_cores - counts.get ("core");
-
-    // decrement cur_nodes for queue
-    if (!queue.empty ())
-        b->queue_usage[queue].cur_nodes = b->queue_usage[queue].cur_nodes -
-                                          counts.get ("node");
-
-    return 0;
-}
-
-
-/*
  * Run the per-limit release checks for a single held job of association b.
  * Check each flux-accounting limit individually to 1) ensure that the
  * association is under the particular limit, accounting for jobs already
@@ -1479,7 +1427,9 @@ static int new_cb (flux_plugin_t *p,
             return add_special_association (p, h, userid);
         }
 
-        if (bank == NULL) {
+        if (bank == NULL
+            && state != FLUX_JOB_STATE_RUN
+            && state != FLUX_JOB_STATE_CLEANUP) {
             // this job is meant to run under the association's default bank;
             // as a result, update the jobspec with their default bank name
             if (update_jobspec_bank (p, userid) < 0) {
@@ -1492,7 +1442,10 @@ static int new_cb (flux_plugin_t *p,
         }
     }
 
-    if (!queue_permitted (queue, b->queues, queues)) {
+    // Admission checks must not reject jobs that are already running.
+    if (state != FLUX_JOB_STATE_RUN
+        && state != FLUX_JOB_STATE_CLEANUP
+        && !queue_permitted (queue, b->queues, queues)) {
         std::string valid_queues = join_strings (b->queues, ",");
         return flux_jobtap_reject_job (p,
                                        args,
@@ -1507,7 +1460,8 @@ static int new_cb (flux_plugin_t *p,
     cur_active_jobs = b->cur_active_jobs;
     max_active_jobs = b->max_active_jobs;
 
-    if (max_active_jobs > 0 && cur_active_jobs >= max_active_jobs)
+    if (state == FLUX_JOB_STATE_NEW
+        && max_active_jobs > 0 && cur_active_jobs >= max_active_jobs)
         // the association is already at their max_active_jobs limit;
         // reject the job
         return flux_jobtap_reject_job (p, args, "user has max active jobs");
@@ -1525,7 +1479,9 @@ static int new_cb (flux_plugin_t *p,
         return 0;
     }
 
-    if (project == NULL) {
+    if (project == NULL
+        && state != FLUX_JOB_STATE_RUN
+        && state != FLUX_JOB_STATE_CLEANUP) {
         // this job is meant to run under a default project, so update
         // the jobspec with the project name
         if (update_jobspec_project (p, userid, bank) < 0) {
@@ -1584,39 +1540,14 @@ static int new_cb (flux_plugin_t *p,
 
     j->charge_active (b);
 
-    if (state == FLUX_JOB_STATE_RUN || state == FLUX_JOB_STATE_CLEANUP) {
-        // this job was already running or cleaning up; increment the
-        // association's running jobs and resource counts
-        b->cur_run_jobs++;
-        // we need to charge the sched resources for this job but decrement
-        // the current number of jobs in SCHED since this is already running
-        j->charge_sched (b, queue_str);
+    if (state == FLUX_JOB_STATE_RUN
+        || (state == FLUX_JOB_STATE_CLEANUP
+            && flux_jobtap_job_event_posted (p, id, "alloc") == 1)) {
+        j->charge_run (b, j->queue);
+        j->charge_sched (b, j->queue);
         j->release_sched_jobs ();
-        if (queue != NULL) {
-            // a queue was passed in; increment counter of the number of
-            // queue-specific running jobs for this association
-            b->queue_usage[std::string (queue)].cur_run_jobs++;
-        }
-        if (jobspec == NULL) {
-            flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
-                                         "mf_priority", 0,
-                                         "job.new: failed to unpack jobspec");
-            return -1;
-        } else {
-            if (increment_resources (b, queue_str, jobspec) < 0) {
-                flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
-                                             "mf_priority", 0,
-                                             "job.new: failed to increment "
-                                             "resource count");
-                return -1;
-            }
-        }
-    }
-    if (state == FLUX_JOB_STATE_SCHED) {
-        // this job was in SCHED state; increment the association's sched
-        // jobs count
-        j->charge_sched (b, queue_str);
-    }
+    } else if (state == FLUX_JOB_STATE_SCHED)
+        j->charge_sched (b, j->queue);
 
     return 0;
 }
@@ -1871,36 +1802,10 @@ static int run_cb (flux_plugin_t *p,
         return -1;
     }
 
-    if (queue != NULL) {
-        // a queue was passed-in; increment counter of the number of
-        // queue-specific running jobs for this association
-        b->queue_usage[std::string (queue)].cur_run_jobs++;
-        queue_str = queue;
-    }
-
-    // increment the user's current running jobs count
-    b->cur_run_jobs++;
-    if (jobspec == NULL) {
-        flux_jobtap_raise_exception (p,
-                                     FLUX_JOBTAP_CURRENT_JOB,
-                                     "mf_priority",
-                                     0,
-                                     "job.state.run: failed to unpack " \
-                                     "jobspec");
-        return -1;
-    } else {
-        if (increment_resources (b, queue_str, jobspec) < 0) {
-            flux_jobtap_raise_exception (p,
-                                         FLUX_JOBTAP_CURRENT_JOB,
-                                         "mf_priority",
-                                         0,
-                                         "job.state.run: failed to increment "
-                                         "resource count");
-            return -1;
-        }
-    }
-
-    // decrement the association's current SCHED jobs and resources count
+    queue_str = queue ? queue : "";
+    j->charge_run (b, queue_str);
+    // Keep SCHED resource charges until INACTIVE, including replayed jobs.
+    j->charge_sched (b, queue_str);
     j->release_sched_jobs ();
     // check to see if any jobs held due to max_sched_jobs limit can now
     // have their dependency removed
@@ -2204,83 +2109,21 @@ static int inactive_cb (flux_plugin_t *p,
                                      "%s: job info missing", topic);
         return -1;
     }
-    // if a queue cannot be found, just set it to ""
-    queue_str = queue ? queue : "";
+    auto cancelled_job = [jobid] (const Job &job) {
+        return job.id == jobid;
+    };
+    b->held_jobs.erase (std::remove_if (b->held_jobs.begin (),
+                                        b->held_jobs.end (),
+                                        cancelled_job),
+                        b->held_jobs.end ());
 
     j->release_active ();
-    if (!flux_jobtap_job_event_posted (p, FLUX_JOBTAP_CURRENT_JOB, "alloc")) {
-        // check to see if this job exists in the Association object's list of
-        // held jobs, and if so, remove it
-        auto cancelled_job = [jobid] (const Job &job) {
-            return job.id == jobid;
-        };
-        b->held_jobs.erase (
-            std::remove_if (b->held_jobs.begin (),
-                            b->held_jobs.end (),
-                            cancelled_job),
-            b->held_jobs.end ()
-        );
-        bool sched_jobs_freed = j->release_sched_jobs ();
-        bool sched_resources_freed = j->release_sched_resources ();
-        if (sched_jobs_freed || sched_resources_freed) {
-            // this job was actually in SCHED state, so see if other held jobs
-            // can use the SCHED headroom it just freed.
-            if (check_and_release_all_held_jobs (p) < 0) {
-                flux_log_error (h,
-                                "%s: error checking and releasing held jobs",
-                                topic);
-            }
-        }
-        return 0;
-    }
-
-    // this job was running, so decrement the current running jobs count
-    // and the resources count and look to see if any held jobs can be released
-    b->cur_run_jobs--;
-    if (jobspec == NULL) {
-        flux_jobtap_raise_exception (p,
-                                     FLUX_JOBTAP_CURRENT_JOB,
-                                     "mf_priority",
-                                     0,
-                                     "job.state.inactive: failed to " \
-                                     "unpack jobspec");
-        return -1;
-    } else {
-        if (decrement_resources (b, queue_str, jobspec) < 0) {
-            flux_jobtap_raise_exception (p,
-                                         FLUX_JOBTAP_CURRENT_JOB,
-                                         "mf_priority",
-                                         0,
-                                         "job.state.inactive: failed to " \
-                                         "decrement resource count");
-            return -1;
-        }
-    }
-
-    if (!queue_str.empty ()) {
-        if (b->queue_usage[queue_str].cur_run_jobs > 0)
-            // decrement num of running jobs the association has in queue
-            b->queue_usage[queue_str].cur_run_jobs--;
-    }
-
-    // decrement the association's current SCHED jobs and resources count
+    j->release_run ();
     j->release_sched_jobs ();
     j->release_sched_resources ();
-
-    // check to see if any jobs held due to the limits above can now
-    // have their dependency removed
     if (check_and_release_all_held_jobs (p) < 0)
         flux_log_error (h, "error checking and releasing held jobs");
-
     return 0;
-error:
-    flux_jobtap_raise_exception (p,
-                                 FLUX_JOBTAP_CURRENT_JOB,
-                                 "mf_priority",
-                                 0,
-                                 "job.state.inactive: failed to check and "
-                                 "release association's held jobs");
-    return -1;
 }
 
 
