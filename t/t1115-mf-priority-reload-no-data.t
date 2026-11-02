@@ -56,9 +56,10 @@ check_usage () {
 		' <query.json
 }
 
-check_sched () {
-	flux jobs -no '{state}' "$1" >pending.out &&
-	grep '^SCHED$' pending.out
+check_hold () {
+	flux job wait-event -t 10 --match-context=priority=0 "$1" priority &&
+	flux jobs -no '{state} {priority}' "$1" >held.out &&
+	grep '^SCHED 0$' held.out
 }
 
 test_expect_success 'configure queues and guest execution' '
@@ -88,13 +89,16 @@ test_expect_success 'create accounting data for two banks of one user' '
 	update_data
 '
 
-test_expect_success 'reload preserves SCHED job accounting before data arrives' '
+# Start the queue before the data update, unlike the older t1048 test.
+test_expect_success 'reload holds ordinary SCHED jobs at priority zero' '
 	flux queue stop --all &&
 	ordinary=$(submit_job --setattr=system.bank=A) &&
 	flux job wait-event -t 10 ${ordinary} priority &&
 	reload_without_data &&
-	check_sched ${ordinary} &&
-	check_usage DNE 1 0 1
+	check_hold ${ordinary} &&
+	check_usage DNE 1 0 1 &&
+	flux queue start --all &&
+	test_must_fail flux job wait-event -t 0.2 ${ordinary} alloc
 '
 
 test_expect_success 'jobspec update during data gap does not kill the job' '
@@ -107,17 +111,17 @@ test_expect_success 'jobspec update during data gap does not kill the job' '
 	no_plugin_exception ${ordinary}
 '
 
-test_expect_success 'data transfers pending charges exactly once before cancellation' '
+test_expect_success 'data restores priority and transfers charges exactly once' '
 	update_data &&
-	check_usage A 1 0 1 &&
+	flux job wait-event -t 10 ${ordinary} start &&
+	check_usage A 1 1 0 &&
 	check_usage DNE 0 0 0 &&
 	update_data &&
-	check_usage A 1 0 1 &&
+	check_usage A 1 1 0 &&
 	flux cancel ${ordinary} &&
 	wait_clean ${ordinary} &&
 	no_plugin_exception ${ordinary} &&
-	check_usage A 0 0 0 &&
-	flux queue start --all
+	check_usage A 0 0 0
 '
 
 test_expect_success 'new jobs still wait in PRIORITY and cancel without data' '
@@ -156,7 +160,7 @@ test_expect_success 'cancel a replayed SCHED job before data arrives' '
 	canceled=$(submit_job --setattr=system.bank=A) &&
 	flux job wait-event -t 10 ${canceled} priority &&
 	reload_without_data &&
-	check_sched ${canceled} &&
+	check_hold ${canceled} &&
 	flux cancel ${canceled} &&
 	wait_clean ${canceled} &&
 	no_plugin_exception ${canceled} &&
@@ -213,7 +217,7 @@ test_expect_success 'replay reconstructs multiple runs and SCHED usage' '
 	pending=$(submit_job --setattr=system.bank=A) &&
 	flux job wait-event -t 10 ${pending} priority &&
 	reload_without_data &&
-	check_sched ${pending} &&
+	check_hold ${pending} &&
 	check_usage DNE 3 2 1 &&
 	update_data &&
 	check_usage DNE 0 0 0 &&
@@ -315,6 +319,27 @@ test_expect_success 'restored running usage enforces limits and releases held wo
 	no_plugin_exception ${limited_run} &&
 	no_plugin_exception ${limited_wait} &&
 	check_usage A 0 0 0
+'
+
+test_expect_success 'urgency holds survive accounting-data restoration' '
+	flux queue stop --all &&
+	held=$(submit_job --setattr=system.bank=B) &&
+	flux job wait-event -t 10 ${held} priority &&
+	flux job urgency ${held} 0 &&
+	reload_without_data &&
+	update_data &&
+	flux queue start --all &&
+	check_hold ${held} &&
+	test_must_fail flux job wait-event -t 0.2 ${held} alloc &&
+	flux cancel ${held} &&
+	wait_clean ${held} &&
+	no_plugin_exception ${held} &&
+	check_usage B 0 0 0
+'
+
+test_expect_success 'reload never reports an unavailable SCHED priority' '
+	flux dmesg >broker.log &&
+	test_must_fail grep "BUG: plugin didn.t return priority" broker.log
 '
 
 test_expect_success 'shut down accounting service' '
