@@ -52,6 +52,8 @@ public:
     std::map<std::string, int> resources;
     std::string queue;             // queue the job is currently assigned to
     double fairshare = -1.0;       // fair-share value associated with this job
+    bool association_pending = false; // deferred validation/default metadata
+    bool missing_association_logged = false;
 
     // constructor
     Job () = default;
@@ -80,6 +82,13 @@ public:
     bool sched_jobs_charged () const { return sched_charge.jobs; }
     bool sched_resources_charged () const { return sched_charge.resources; }
 
+    // track the owner of every charge, including usage reconstructed on reload
+    bool charge_active (Association *assoc);
+    bool release_active ();
+    bool charge_run (Association *assoc, const std::string &queue);
+    bool release_run ();
+    bool move_usage (Association *assoc, const std::string &queue);
+
     // add a dependency to the job's list of dependencies
     void add_dep (const std::string &dep);
 
@@ -91,6 +100,11 @@ public:
 
 private:
     SchedCharge sched_charge;
+    Association *m_active_assoc = nullptr;
+    Association *m_run_assoc = nullptr;
+    std::string m_run_queue;
+    int m_run_nodes = 0;
+    int m_run_cores = 0;
 };
 
 #endif // JOB_H

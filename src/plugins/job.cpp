@@ -137,3 +137,89 @@ bool Job::move_sched (Association *assoc, const std::string &queue)
 
     return sched_usage_freed;
 }
+
+
+bool Job::charge_active (Association *assoc)
+{
+    if (m_active_assoc)
+        return false;
+    m_active_assoc = assoc;
+    assoc->cur_active_jobs++;
+    return true;
+}
+
+
+bool Job::release_active ()
+{
+    if (!m_active_assoc)
+        return false;
+    m_active_assoc->cur_active_jobs--;
+    m_active_assoc = nullptr;
+    return true;
+}
+
+
+bool Job::charge_run (Association *assoc, const std::string &queue)
+{
+    if (m_run_assoc)
+        return false;
+    m_run_assoc = assoc;
+    m_run_queue = queue;
+    m_run_nodes = nnodes ();
+    m_run_cores = ncores ();
+    assoc->cur_run_jobs++;
+    assoc->cur_nodes += m_run_nodes;
+    assoc->cur_cores += m_run_cores;
+    if (!queue.empty ()) {
+        assoc->queue_usage[queue].cur_run_jobs++;
+        assoc->queue_usage[queue].cur_nodes += m_run_nodes;
+    }
+    return true;
+}
+
+
+bool Job::release_run ()
+{
+    if (!m_run_assoc)
+        return false;
+    m_run_assoc->cur_run_jobs--;
+    m_run_assoc->cur_nodes -= m_run_nodes;
+    m_run_assoc->cur_cores -= m_run_cores;
+    if (!m_run_queue.empty ()) {
+        m_run_assoc->queue_usage[m_run_queue].cur_run_jobs--;
+        m_run_assoc->queue_usage[m_run_queue].cur_nodes -= m_run_nodes;
+    }
+    m_run_assoc = nullptr;
+    return true;
+}
+
+
+bool Job::move_usage (Association *assoc, const std::string &queue)
+{
+    bool freed = move_sched (assoc, queue);
+
+    if (m_active_assoc && m_active_assoc != assoc) {
+        release_active ();
+        charge_active (assoc);
+        freed = true;
+    }
+    if (m_run_assoc && (m_run_assoc != assoc || m_run_queue != queue)) {
+        // preserve the charged resource counts even if jobspec has changed.
+        int nodes = m_run_nodes;
+        int cores = m_run_cores;
+        release_run ();
+        m_run_assoc = assoc;
+        m_run_queue = queue;
+        m_run_nodes = nodes;
+        m_run_cores = cores;
+        assoc->cur_run_jobs++;
+        assoc->cur_nodes += nodes;
+        assoc->cur_cores += cores;
+        if (!queue.empty ()) {
+            assoc->queue_usage[queue].cur_run_jobs++;
+            assoc->queue_usage[queue].cur_nodes += nodes;
+        }
+        freed = true;
+    }
+    return freed;
+}
