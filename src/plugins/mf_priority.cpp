@@ -1098,16 +1098,17 @@ static int priority_cb (flux_plugin_t *p,
                         flux_plugin_arg_t *args,
                         void *data)
 {
-    int urgency, userid;
+    int urgency, userid, state;
     char *bank = NULL;
     char *queue = NULL;
     const char *project = NULL;
 
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args, FLUX_PLUGIN_ARG_IN,
-                                "{s:i s:i s:{s:{s:{s?s s?s s?s}}}}",
+                                "{s:i s:i s:i s:{s:{s:{s?s s?s s?s}}}}",
                                 "urgency", &urgency,
                                 "userid", &userid,
+                                "state", &state,
                                 "jobspec", "attributes", "system",
                                 "bank", &bank, "queue", &queue,
                                 "project", &project) < 0) {
@@ -1135,6 +1136,12 @@ static int priority_cb (flux_plugin_t *p,
                                          userid);
             return -1;
         }
+        // SCHED cannot return to PRIORITY. A numeric hold also cancels
+        // outstanding allocation requests; expedite still overrides it.
+        if (state == FLUX_JOB_STATE_SCHED)
+            return flux_plugin_arg_pack (args, FLUX_PLUGIN_ARG_OUT,
+                                          "{s:I}", "priority",
+                                          int64_t (FLUX_JOB_PRIORITY_MIN));
         return flux_jobtap_priority_unavail (p, args);
     }
     if (j->association_pending) {
@@ -1704,7 +1711,7 @@ static int run_cb (flux_plugin_t *p,
 
     queue_str = queue ? queue : "";
     j->charge_run (b, queue_str);
-    // Keep SCHED resource charges until INACTIVE, including replayed jobs.
+    // A replayed SCHED job may receive its allocation before the reload hold.
     j->charge_sched (b, queue_str);
     j->release_sched_jobs ();
     // check to see if any jobs held due to max_sched_jobs limit can now
