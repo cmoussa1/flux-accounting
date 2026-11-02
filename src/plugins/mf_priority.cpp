@@ -30,6 +30,7 @@ extern "C" {
 #include <cstdint>
 #include <new>
 #include <utility>
+#include <set>
 
 // custom Association class file
 #include "accounting.hpp"
@@ -50,6 +51,7 @@ std::vector<std::string> projects;
 std::map<std::string, int> priority_weights;
 bool deny_unknown_queues = false;
 static std::string default_queue = "";
+static std::set<flux_jobid_t> unresolved_jobs;
 static priority_estimate_ctx_t priority_estimate_ctx = {
     &users,
     &users_def_bank,
@@ -534,6 +536,79 @@ static bool move_held_job (Association *old_assoc,
 }
 
 
+/* Rebind by job ID so RUN and CLEANUP jobs are reconciled too. The priority
+ * callback does not visit those states. Leave pending validation/default
+ * metadata to priority_cb (), where jobspec updates have a current job.
+ */
+static int reconcile_associations (flux_plugin_t *p)
+{
+    flux_t *h = flux_jobtap_get_flux (p);
+
+    for (auto it = unresolved_jobs.begin (); it != unresolved_jobs.end ();) {
+        flux_jobid_t id = *it;
+        flux_plugin_arg_t *args = flux_jobtap_job_lookup (p, id);
+        if (!args) {
+            if (errno != ENOENT)
+                return -1;
+            it = unresolved_jobs.erase (it);
+            continue;
+        }
+        int userid, state;
+        const char *bank = NULL;
+        if (flux_plugin_arg_unpack (args, FLUX_PLUGIN_ARG_IN,
+                                    "{s:i s:i s:{s:{s:{s?s}}}}",
+                                    "userid", &userid, "state", &state,
+                                    "jobspec", "attributes", "system",
+                                    "bank", &bank) < 0) {
+            flux_plugin_arg_destroy (args);
+            return -1;
+        }
+        if (state == FLUX_JOB_STATE_INACTIVE) {
+            flux_plugin_arg_destroy (args);
+            it = unresolved_jobs.erase (it);
+            continue;
+        }
+        Job *j = static_cast<Job *> (
+            flux_jobtap_job_aux_get (p, id, "mf_priority:job_info"));
+        Association *old = static_cast<Association *> (
+            flux_jobtap_job_aux_get (p, id, "mf_priority:bank_info"));
+        if (!j || !old) {
+            flux_plugin_arg_destroy (args);
+            errno = EINVAL;
+            return -1;
+        }
+        Association *a = get_association (userid,
+                                          bank,
+                                          users, users_def_bank);
+        if (!a || a->provisional) {
+            if ((state == FLUX_JOB_STATE_RUN
+                 || state == FLUX_JOB_STATE_CLEANUP)
+                && !j->missing_association_logged) {
+                flux_log (h, LOG_WARNING,
+                          "mf_priority: job %ju: association unavailable "
+                          "for uid %i; retaining temporary accounting",
+                          static_cast<uintmax_t> (id), userid);
+                j->missing_association_logged = true;
+            }
+            flux_plugin_arg_destroy (args);
+            ++it;
+            continue;
+        }
+        if (flux_jobtap_job_aux_set (p, id, "mf_priority:bank_info", a, NULL)
+            < 0) {
+            flux_plugin_arg_destroy (args);
+            return -1;
+        }
+        a->bank_factor = get_bank_priority (a->bank_name.c_str (), banks);
+        j->move_usage (a, j->queue);
+        move_held_job (old, a, id, j->queue);
+        flux_plugin_arg_destroy (args);
+        it = unresolved_jobs.erase (it);
+    }
+    return 0;
+}
+
+
 /*
  * Release a set of held jobs, gathered as {Association*, Job*} pairs, in
  * priority order (highest priority first), breaking ties by jobid so that
@@ -842,6 +917,12 @@ static void rec_update_cb (flux_t *h,
         goto error;
     }
 
+    // Restore all usage before a later reprioritize/release sweep can run.
+    if (reconcile_associations (static_cast<flux_plugin_t *> (arg)) < 0) {
+        flux_log_error (h, "reconciling accounting associations");
+        goto error;
+    }
+
     if (flux_respond (h, msg, NULL) < 0)
         flux_log_error (h, "flux_respond");
     return;
@@ -1021,178 +1102,63 @@ static int priority_cb (flux_plugin_t *p,
     char *bank = NULL;
     char *queue = NULL;
     const char *project = NULL;
-    int64_t priority;
-    Association *b;
-    json_t *jobspec;
-    long int id;
 
     flux_t *h = flux_jobtap_get_flux (p);
-    if (flux_plugin_arg_unpack (args,
-                                FLUX_PLUGIN_ARG_IN,
-                                "{s:i, s:i, s{s{s{s?s, s?s, s?s}}}, s:o, s:I}",
+    if (flux_plugin_arg_unpack (args, FLUX_PLUGIN_ARG_IN,
+                                "{s:i s:i s:{s:{s:{s?s s?s s?s}}}}",
                                 "urgency", &urgency,
                                 "userid", &userid,
                                 "jobspec", "attributes", "system",
                                 "bank", &bank, "queue", &queue,
-                                "project", &project,
-                                "jobspec", &jobspec,
-                                "id", &id) < 0) {
-        flux_log (h,
-                  LOG_ERR,
-                  "flux_plugin_arg_unpack: %s",
+                                "project", &project) < 0) {
+        flux_log (h, LOG_ERR, "flux_plugin_arg_unpack: %s",
                   flux_plugin_arg_strerror (args));
         return -1;
     }
-
-    b = static_cast<Association *> (flux_jobtap_job_aux_get (
-                                                    p,
-                                                    FLUX_JOBTAP_CURRENT_JOB,
-                                                    "mf_priority:bank_info"));
-
-    if (b == nullptr || b->provisional) {
-        /*
-         * The flux-accounting information associated with this job could not
-         * be found by the time this job got to job.state.priority. This could
-         * be due to Flux being restarted and pending jobs having their aux
-         * items reset or the plugin being reloaded and jobs being "re-seen"
-         * (see Flux RFC 21). Attempt to look up the association again and
-         * attach its information to the job with aux_set.
-         */
-        Association *assoc = get_association (userid,
-                                              bank,
-                                              users,
-                                              users_def_bank);
-        if (assoc == nullptr) {
-            if (check_map_for_dne_only (users, users_def_bank) == true)
-                // the plugin is still waiting on flux-accounting data to be
-                // loaded in; keep the job in PRIORITY
-                return flux_jobtap_priority_unavail (p, args);
-
-            // association no longer exists in internal map
-            flux_jobtap_raise_exception (p,
-                                         FLUX_JOBTAP_CURRENT_JOB,
-                                         "mf_priority",
-                                         0,
+    Job *j = static_cast<Job *> (flux_jobtap_job_aux_get (
+        p, FLUX_JOBTAP_CURRENT_JOB, "mf_priority:job_info"));
+    Association *b = static_cast<Association *> (flux_jobtap_job_aux_get (
+        p, FLUX_JOBTAP_CURRENT_JOB, "mf_priority:bank_info"));
+    if (!j || !b) {
+        flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
+                                     "mf_priority", 0,
+                                     "%s: %s info missing", topic,
+                                     j ? "bank" : "job");
+        return -1;
+    }
+    if (b->provisional) {
+        if (!check_map_for_dne_only (users, users_def_bank)) {
+            flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
+                                         "mf_priority", 0,
                                          "cannot find user/bank or "
                                          "user/default bank entry for uid: %i",
                                          userid);
             return -1;
-        } else {
-            if (assoc->bank_name == "DNE")
-                // the association still does not have a valid entry in the
-                // users map, so keep it in PRIORITY
-                return flux_jobtap_priority_unavail (p, args);
-
-            if (!queue_permitted (queue, assoc->queues, queues))
-                // the queue the association specified is invalid
-                return -1;
-
-            // update this job with the now-found association's information
-            if (flux_jobtap_job_aux_set (p,
-                                         FLUX_JOBTAP_CURRENT_JOB,
-                                         "mf_priority:bank_info",
-                                         assoc,
-                                         NULL) < 0) {
-                flux_log_error (h, "flux_jobtap_job_aux_set");
-                return -1;
-            }
-            b = assoc;
-
-            if (bank == NULL) {
-                // this job did not specify a bank and was submitted before
-                // the plugin had flux-accounting data, so it has no bank in
-                // its jobspec yet; update it with the association's default
-                if (update_jobspec_bank (p, userid) < 0) {
-                    flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
-                                                 "mf_priority", 0,
-                                                 "job.state.priority: failed "
-                                                 "to update jobspec with "
-                                                 "bank name");
-                    return -1;
-                }
-            }
-
-            if (project == NULL) {
-                // we also need to update the jobspec with the default project
-                // used to submit this job under
-                if (update_jobspec_project (p, userid, bank) < 0) {
-                    flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
-                                                "mf_priority", 0,
-                                                "job.state.priority: failed "
-                                                "to update jobspec with "
-                                                "project name");
-                    return -1;
-                }
-            }
         }
+        return flux_jobtap_priority_unavail (p, args);
     }
-
-    Job *j = static_cast<Job *> (flux_jobtap_job_aux_get (
-                                                    p,
-                                                    FLUX_JOBTAP_CURRENT_JOB,
-                                                    "mf_priority:job_info"));
-    if (j == nullptr) {
-        // if the plugin was reloaded, we need to re-attach the Job aux item
-        // so later callbacks don't have to re-parse jobspec
-        j = new (std::nothrow) Job ();
-        if (j == nullptr) {
-            flux_jobtap_raise_exception (p,
-                                         FLUX_JOBTAP_CURRENT_JOB,
-                                         "mf_priority",
-                                         0,
-                                         "%s: failed to allocate Job",
-                                         topic);
+    if (j->association_pending) {
+        if (!queue_permitted (queue, b->queues, queues)) {
+            flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
+                                         "mf_priority", 0,
+                                         "%s: queue is not permitted", topic);
             return -1;
         }
-        if (j->count_resources (jobspec) < 0) {
-            delete j;
-            flux_jobtap_raise_exception (p,
-                                         FLUX_JOBTAP_CURRENT_JOB,
-                                         "mf_priority",
-                                         0,
-                                         "%s: unable to count resources for "
-                                         "job",
-                                         topic);
+        if ((bank == NULL && update_jobspec_bank (p, userid) < 0)
+            || (project == NULL
+                && update_jobspec_project (p, userid, bank) < 0)) {
+            flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
+                                         "mf_priority", 0,
+                                         "%s: failed to update jobspec "
+                                         "with bank or project", topic);
             return -1;
         }
-        j->queue = queue ? queue : "";
-        j->id = id;
-        if (flux_jobtap_job_aux_set (p,
-                                     FLUX_JOBTAP_CURRENT_JOB,
-                                     "mf_priority:job_info",
-                                     j,
-                                     free_job) < 0) {
-            delete j;
-            flux_jobtap_raise_exception (p,
-                                         FLUX_JOBTAP_CURRENT_JOB,
-                                         "mf_priority",
-                                         0,
-                                         "%s: failed to set Job aux item",
-                                         topic);
-            return -1;
-        }
+        j->association_pending = false;
     }
 
-    // Record late association charges only after Job is attached. An existing
-    // Job may already carry an active charge under a provisional association.
-    j->move_usage (b, j->queue);
-    j->charge_active (b);
-
-    priority = priority_calculation (p, j, urgency);
-
-    if (flux_plugin_arg_pack (args,
-                              FLUX_PLUGIN_ARG_OUT,
-                              "{s:I}",
-                              "priority",
-                              priority) < 0) {
-        flux_log (h,
-                  LOG_ERR,
-                  "flux_plugin_arg_pack: %s",
-                  flux_plugin_arg_strerror (args));
-        return -1;
-    }
-
-    return 0;
+    int64_t priority = priority_calculation (p, j, urgency);
+    return flux_plugin_arg_pack (args, FLUX_PLUGIN_ARG_OUT,
+                                  "{s:I}", "priority", priority);
 }
 
 
@@ -1384,12 +1350,9 @@ static int new_cb (flux_plugin_t *p,
     char *bank = NULL;
     char *queue = NULL;
     const char *project = NULL;
-    int max_run_jobs, cur_active_jobs, max_active_jobs = 0;
-    Association *b;
     flux_job_state_t state;
     json_t *jobspec = NULL;
-    std::string queue_str;
-    long int id;
+    flux_jobid_t id;
 
     flux_t *h = flux_jobtap_get_flux (p);
     if (flux_plugin_arg_unpack (args,
@@ -1401,146 +1364,82 @@ static int new_cb (flux_plugin_t *p,
                                 "bank", &bank, "queue", &queue,
                                 "project", &project,
                                 "jobspec", &jobspec,
-                                "id", &id) < 0) {
+                                "id", &id) < 0)
         return flux_jobtap_reject_job (p, args, "unable to unpack bank arg");
+
+    // Job state is needed even when accounting data is not yet available.
+    Job *j = new (std::nothrow) Job ();
+    if (j == nullptr) {
+        flux_jobtap_raise_exception (p, id, "mf_priority", 0,
+                                     "%s: failed to allocate Job", topic);
+        return -1;
+    }
+    if (j->count_resources (jobspec) < 0) {
+        delete j;
+        flux_jobtap_raise_exception (p, id, "mf_priority", 0,
+                                     "%s: unable to count resources", topic);
+        return -1;
+    }
+    j->queue = queue ? queue : "";
+    j->id = id;
+    if (flux_jobtap_job_aux_set (p, id, "mf_priority:job_info", j, free_job) < 0) {
+        delete j;
+        flux_jobtap_raise_exception (p, id, "mf_priority", 0,
+                                     "%s: failed to set Job aux item", topic);
+        return -1;
     }
 
-    // remove a queue dependency left by an older plugin version when an
-    // existing job is replayed after a restart or plugin reload
+    // Remove a queue dependency left by an older plugin version on replay.
     if (state == FLUX_JOB_STATE_DEPEND
-        && flux_jobtap_job_event_posted (p,
-                                         FLUX_JOBTAP_CURRENT_JOB,
-                                         "dependency-add") == 1)
+        && flux_jobtap_job_event_posted (p, id, "dependency-add") == 1)
         (void) flux_jobtap_dependency_remove (p, id, D_QUEUE_MRES);
 
-    b = static_cast<Association *> (flux_jobtap_job_aux_get (
-                                                    p,
-                                                    FLUX_JOBTAP_CURRENT_JOB,
-                                                    "mf_priority:bank_info"));
-
+    Association *b = get_association (userid, bank, users, users_def_bank);
     if (b == nullptr) {
-        // Association object was not unpacked; perform lookup
-        b = get_association (userid, bank, users, users_def_bank);
-
-        if (b == nullptr) {
-            // the association could not be found in internal map, so create a
-            // special Association object that will hold the job in PRIORITY
-            return add_special_association (p, h, userid);
-        }
-
-        if (bank == NULL
-            && state != FLUX_JOB_STATE_RUN
-            && state != FLUX_JOB_STATE_CLEANUP) {
-            // this job is meant to run under the association's default bank;
-            // as a result, update the jobspec with their default bank name
-            if (update_jobspec_bank (p, userid) < 0) {
-                flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
-                                             "mf_priority", 0,
+        if (add_special_association (p, h, userid) < 0)
+            return -1;
+        b = &users[userid]["DNE"];
+    }
+    if (b->provisional) {
+        j->association_pending = true;
+        unresolved_jobs.insert (id);
+    } else {
+        // These are admission checks, not reasons to kill a replayed run.
+        if (state != FLUX_JOB_STATE_RUN && state != FLUX_JOB_STATE_CLEANUP) {
+            if (!queue_permitted (queue, b->queues, queues)) {
+                std::string valid_queues = join_strings (b->queues, ",");
+                return flux_jobtap_reject_job (p, args, MSG_INVALID_QUEUE,
+                                               queue, valid_queues.c_str ());
+            }
+            if (bank == NULL && update_jobspec_bank (p, userid) < 0) {
+                flux_jobtap_raise_exception (p, id, "mf_priority", 0,
                                              "job.new: failed to update "
                                              "jobspec with bank name");
                 return -1;
             }
+            if (project == NULL
+                && update_jobspec_project (p, userid, bank) < 0) {
+                flux_jobtap_raise_exception (p, id, "mf_priority", 0,
+                                             "job.new: failed to update "
+                                             "jobspec with project name");
+                return -1;
+            }
         }
+        b->bank_factor = get_bank_priority (b->bank_name.c_str (), banks);
+        if (state == FLUX_JOB_STATE_NEW
+            && b->max_active_jobs > 0
+            && b->cur_active_jobs >= b->max_active_jobs)
+            return flux_jobtap_reject_job (p, args, "user has max active jobs");
+
+        // Preserve the test hook for missing bank-info error handling.
+        if (b->max_run_jobs == -1)
+            return flux_jobtap_job_aux_set (p, id, "mf_priority:bank_info",
+                                            NULL, NULL);
     }
-
-    // Admission checks must not reject jobs that are already running.
-    if (state != FLUX_JOB_STATE_RUN
-        && state != FLUX_JOB_STATE_CLEANUP
-        && !queue_permitted (queue, b->queues, queues)) {
-        std::string valid_queues = join_strings (b->queues, ",");
-        return flux_jobtap_reject_job (p,
-                                       args,
-                                       MSG_INVALID_QUEUE,
-                                       queue,
-                                       valid_queues.c_str ());
-    }
-    // assign priority associated with validated bank
-    b->bank_factor = get_bank_priority (b->bank_name.c_str (), banks);
-
-    max_run_jobs = b->max_run_jobs;
-    cur_active_jobs = b->cur_active_jobs;
-    max_active_jobs = b->max_active_jobs;
-
-    if (state == FLUX_JOB_STATE_NEW
-        && max_active_jobs > 0 && cur_active_jobs >= max_active_jobs)
-        // the association is already at their max_active_jobs limit;
-        // reject the job
-        return flux_jobtap_reject_job (p, args, "user has max active jobs");
-
-    if (max_run_jobs == -1) {
-        // special case where the object passed between callbacks is set to
-        // NULL; this is used for testing the "if (b == NULL)" checks
-        if (flux_jobtap_job_aux_set (p,
-                                     FLUX_JOBTAP_CURRENT_JOB,
-                                     "mf_priority:bank_info",
-                                     NULL,
-                                     NULL) < 0)
-            flux_log_error (h, "flux_jobtap_job_aux_set");
-
-        return 0;
-    }
-
-    if (project == NULL
-        && state != FLUX_JOB_STATE_RUN
-        && state != FLUX_JOB_STATE_CLEANUP) {
-        // this job is meant to run under a default project, so update
-        // the jobspec with the project name
-        if (update_jobspec_project (p, userid, bank) < 0) {
-            flux_jobtap_raise_exception (p, FLUX_JOBTAP_CURRENT_JOB,
-                                         "mf_priority", 0,
-                                         "job.new: failed to update jobspec "
-                                         "with project name");
-            return -1;
-        }
-    }
-
-    if (flux_jobtap_job_aux_set (p,
-                                 FLUX_JOBTAP_CURRENT_JOB,
-                                 "mf_priority:bank_info",
-                                 b,
-                                 NULL) < 0)
-        flux_log_error (h, "flux_jobtap_job_aux_set");
-
-    if (queue != NULL)
-        queue_str = queue;
-
-    // attach a Job object so that callbacks can reference the job's properties
-    // without having to re-parse jobspec
-    Job *j = new (std::nothrow) Job ();
-    if (j == nullptr) {
-        flux_jobtap_raise_exception (p,
-                                     FLUX_JOBTAP_CURRENT_JOB,
-                                     "mf_priority",
-                                     0,
-                                     "%s: failed to allocate Job",
-                                     topic);
+    if (flux_jobtap_job_aux_set (p, id, "mf_priority:bank_info", b, NULL) < 0)
         return -1;
-    }
-
-    if (j->count_resources (jobspec) < 0) {
-        delete j;
-        flux_jobtap_raise_exception (p,
-                                     FLUX_JOBTAP_CURRENT_JOB,
-                                     "mf_priority",
-                                     0,
-                                     "%s: unable to count resources",
-                                     topic);
-        return -1;
-    }
-    j->queue = queue_str;
-    j->id = id;
-    if (flux_jobtap_job_aux_set (p,
-                                 FLUX_JOBTAP_CURRENT_JOB,
-                                 "mf_priority:job_info",
-                                 j,
-                                 free_job) < 0) {
-        delete j;
-        flux_log_error (h, "job.new: flux_jobtap_job_aux_set (job_info)");
-        return -1;
-    }
 
     j->charge_active (b);
-
     if (state == FLUX_JOB_STATE_RUN
         || (state == FLUX_JOB_STATE_CLEANUP
             && flux_jobtap_job_event_posted (p, id, "alloc") == 1)) {
@@ -2085,6 +1984,8 @@ static int inactive_cb (flux_plugin_t *p,
         return -1;
     }
 
+    unresolved_jobs.erase (jobid);
+
     b = static_cast<Association *> (flux_jobtap_job_aux_get (
                                                     p,
                                                     FLUX_JOBTAP_CURRENT_JOB,
@@ -2149,6 +2050,7 @@ static const struct flux_plugin_handler tab[] = {
 extern "C" int flux_plugin_init (flux_plugin_t *p)
 {
     // explicitly reset all global state of internal data structures
+    unresolved_jobs.clear ();
     users.clear ();
     queues.clear ();
     banks.clear ();

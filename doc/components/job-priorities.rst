@@ -20,6 +20,16 @@ Priority 0 is reserved for jobs with a hold urgency of 0. If the calculated
 priority for a job with any other urgency rounds to 0 or below, the priority
 plugin assigns priority 1, the lowest priority that can be scheduled.
 
+When the plugin is reloaded without accounting data, new jobs wait in
+PRIORITY. Jobs that run before data arrives, including jobs already
+running at reload, continue with temporary accounting charges. When
+their association arrives, the plugin transfers those charges before
+releasing held work, preserving any bank already recorded in jobspec.
+If the association is still absent, running jobs are allowed to finish;
+the plugin logs the unresolved association once per job during that
+plugin load and retries on later updates. Temporary charges are released
+when a job finishes, even if accounting data never arrives.
+
 ************************
 The Priority Calculation
 ************************
